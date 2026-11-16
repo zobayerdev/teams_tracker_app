@@ -3,6 +3,7 @@
 import 'dart:ui';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:location_tracker/common_widgets/common_import.dart';
+import 'package:location_tracker/features/employee_part/profile_screen/model/employee_profile_model.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -12,26 +13,25 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  // Demo user data (api_profile.php theke dynamic hobe)
-  String _name = "Rahim Ahmed";
-  final String _email = "rahim@example.com";
-  String _mobile = "01711223344";
-  final String _designation = "Field Sales Executive";
-  String _territory = "Tongi & Gazipur Zone";
-  final String _supervisor = "Nayem Supervisor (01822334455)";
-  final String _status = "active";
+  // Demo fallback user data (will be populated dynamically from api_profile.php)
+  final String _defaultName = "Employee";
+  final String _defaultEmail = "employee@example.com";
+  final String _defaultMobile = "N/A";
+  final String _defaultDesignation = "Field Sales Executive";
+  final String _defaultTerritory = "Not Assigned";
+  final String _defaultSupervisor = "Not Assigned";
+  final String _defaultStatus = "active";
+
+  @override
+  void initState() {
+    super.initState();
+    getEmpProfileRxObj.getEmpProfile();
+  }
 
   void _navigateToEditProfile() async {
-    // Edit screen-e jawar navigation
-    // await Navigator.push(
-    //   context,
-    //   MaterialPageRoute(builder: (context) => const EditProfileScreen()),
-    // );
-
-    NavigationService.navigateTo(Routes.editProfileScreen);
-
-    // Edit profile theke back ashle proyojone data refresh korte paren
-    setState(() {});
+    await NavigationService.navigateTo(Routes.editProfileScreen);
+    // Refresh profile on return
+    getEmpProfileRxObj.getEmpProfile();
   }
 
   void _showChangePasswordDialog() {
@@ -107,15 +107,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ElevatedButton(
                 onPressed: () {
                   Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        'Password updated successfully!',
-                        style: GoogleFonts.outfit(),
-                      ),
-                      backgroundColor: const Color(0xFF059669),
-                    ),
-                  );
+                  customToastMessage('Success', 'Password update request submitted');
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF059669),
@@ -199,468 +191,678 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
           ),
 
-          // 3. Main Profile View
+          // 3. Main Profile View with StreamBuilder
           SafeArea(
-            child: SingleChildScrollView(
-              physics: const BouncingScrollPhysics(),
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // App Bar Row (Title + Edit Profile Quick Icon)
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Officer Profile',
-                        style: GoogleFonts.outfit(
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                          color: const Color(0xFF064E3B),
-                        ),
-                      ),
-                      Row(
-                        children: [
-                          // Status Badge
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 6,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.85),
-                              borderRadius: BorderRadius.circular(20),
-                              border: Border.all(
-                                color: const Color(0xFF10B981).withOpacity(0.4),
-                              ),
-                            ),
-                            child: Row(
-                              children: [
-                                Container(
-                                  width: 7,
-                                  height: 7,
-                                  decoration: const BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    color: Color(0xFF10B981),
-                                  ),
-                                ),
-                                const SizedBox(width: 6),
-                                Text(
-                                  _status.toUpperCase(),
-                                  style: GoogleFonts.outfit(
-                                    fontSize: 10.5,
-                                    fontWeight: FontWeight.bold,
-                                    color: const Color(0xFF064E3B),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(width: 8),
+            child: StreamBuilder<Map>(
+              stream: getEmpProfileRxObj.dataFetcher.stream,
+              builder: (context, snapshot) {
+                final bool isInitialLoading =
+                    snapshot.connectionState == ConnectionState.waiting &&
+                        (!snapshot.hasData ||
+                            (snapshot.data is Map &&
+                                (snapshot.data as Map).isEmpty));
 
-                          // Edit Profile Icon Action Button
-                          GestureDetector(
-                            onTap: _navigateToEditProfile,
-                            child: Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.9),
-                                shape: BoxShape.circle,
-                                border: Border.all(
-                                  color: const Color(
-                                    0xFF10B981,
-                                  ).withOpacity(0.3),
-                                ),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: const Color(
-                                      0xFF059669,
-                                    ).withOpacity(0.12),
-                                    blurRadius: 10,
-                                    offset: const Offset(0, 4),
-                                  ),
-                                ],
-                              ),
-                              child: const Icon(
-                                Icons.edit_rounded,
-                                size: 18,
-                                color: Color(0xFF059669),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
+                EmployeeProfileResponseModel? response;
+                if (snapshot.hasData &&
+                    snapshot.data != null &&
+                    snapshot.data is Map &&
+                    (snapshot.data as Map).isNotEmpty) {
+                  try {
+                    response = EmployeeProfileResponseModel.fromJson(
+                      Map<String, dynamic>.from(snapshot.data!),
+                    );
+                  } catch (_) {}
+                }
 
-                  // Profile Main Card (Gloss Frosted)
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(24),
-                    child: BackdropFilter(
-                      filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-                      child: Container(
-                        padding: const EdgeInsets.all(20),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.7),
-                          borderRadius: BorderRadius.circular(24),
-                          border: Border.all(color: Colors.white, width: 2),
-                          boxShadow: [
-                            BoxShadow(
-                              color: const Color(0xFF064E3B).withOpacity(0.08),
-                              blurRadius: 28,
-                              offset: const Offset(0, 12),
-                            ),
-                          ],
-                        ),
-                        child: Column(
+                final profile = response?.data?.profile;
+                final supervisor = response?.data?.supervisor;
+                final stats = response?.data?.statistics;
+
+                final String displayName =
+                    profile?.name?.isNotEmpty == true ? profile!.name! : _defaultName;
+                final String displayEmail =
+                    profile?.email?.isNotEmpty == true ? profile!.email! : _defaultEmail;
+                final String displayMobile =
+                    profile?.mobile?.isNotEmpty == true ? profile!.mobile! : _defaultMobile;
+                final String displayDesignation =
+                    profile?.designation?.isNotEmpty == true
+                        ? profile!.designation!
+                        : _defaultDesignation;
+                final String displayStatus =
+                    profile?.status?.isNotEmpty == true ? profile!.status! : _defaultStatus;
+                final String displayTerritory =
+                    profile?.presentAddress?.isNotEmpty == true
+                        ? profile!.presentAddress!
+                        : _defaultTerritory;
+                final String displaySupervisor = supervisor?.name != null
+                    ? "${supervisor!.name}${supervisor.phone != null ? ' (${supervisor.phone})' : ''}"
+                    : _defaultSupervisor;
+                final String displayRole = profile?.roleType?.isNotEmpty == true
+                    ? profile!.roleType!.replaceAll('_', ' ').toUpperCase()
+                    : 'SALES REPRESENTATIVE';
+
+                if (isInitialLoading) {
+                  return const Center(
+                    child: CircularProgressIndicator(
+                      color: Color(0xFF10B981),
+                    ),
+                  );
+                }
+
+                return RefreshIndicator(
+                  color: const Color(0xFF10B981),
+                  backgroundColor: Colors.white,
+                  onRefresh: () => getEmpProfileRxObj.getEmpProfile(),
+                  child: SingleChildScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(
+                      parent: BouncingScrollPhysics(),
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 16,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // App Bar Row (Title + Status Badge + Edit Profile Action)
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
+                            Text(
+                              'Officer Profile',
+                              style: GoogleFonts.outfit(
+                                fontSize: 24,
+                                fontWeight: FontWeight.bold,
+                                color: const Color(0xFF064E3B),
+                              ),
+                            ),
                             Row(
                               children: [
-                                // Avatar Icon / Picture
+                                // Status Badge
                                 Container(
-                                  width: 68,
-                                  height: 68,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 6,
+                                  ),
                                   decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    gradient: const LinearGradient(
-                                      colors: [
-                                        Color(0xFF34D399),
-                                        Color(0xFF059669),
-                                      ],
-                                      begin: Alignment.topLeft,
-                                      end: Alignment.bottomRight,
-                                    ),
+                                    color: Colors.white.withOpacity(0.85),
+                                    borderRadius: BorderRadius.circular(20),
                                     border: Border.all(
-                                      color: Colors.white,
-                                      width: 2,
+                                      color: const Color(0xFF10B981)
+                                          .withOpacity(0.4),
                                     ),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: const Color(
-                                          0xFF059669,
-                                        ).withOpacity(0.3),
-                                        blurRadius: 15,
-                                        offset: const Offset(0, 6),
-                                      ),
-                                    ],
                                   ),
-                                  child: const Icon(
-                                    Icons.person_rounded,
-                                    size: 40,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                                const SizedBox(width: 16),
-
-                                // Name & Designation
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
+                                  child: Row(
                                     children: [
+                                      Container(
+                                        width: 7,
+                                        height: 7,
+                                        decoration: BoxDecoration(
+                                          shape: BoxShape.circle,
+                                          color: displayStatus.toLowerCase() ==
+                                                  'active'
+                                              ? const Color(0xFF10B981)
+                                              : Colors.amber,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 6),
                                       Text(
-                                        _name,
+                                        displayStatus.toUpperCase(),
                                         style: GoogleFonts.outfit(
-                                          fontSize: 19,
+                                          fontSize: 10.5,
                                           fontWeight: FontWeight.bold,
                                           color: const Color(0xFF064E3B),
                                         ),
                                       ),
-                                      const SizedBox(height: 2),
-                                      Text(
-                                        _designation,
-                                        style: GoogleFonts.outfit(
-                                          fontSize: 13,
-                                          color: const Color(0xFF059669),
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        _email,
-                                        style: GoogleFonts.outfit(
-                                          fontSize: 12,
-                                          color: const Color(0xFF64748B),
-                                        ),
-                                      ),
                                     ],
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+
+                                // Edit Profile Icon Action Button
+                                GestureDetector(
+                                  onTap: _navigateToEditProfile,
+                                  child: Container(
+                                    padding: const EdgeInsets.all(8),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withOpacity(0.9),
+                                      shape: BoxShape.circle,
+                                      border: Border.all(
+                                        color: const Color(0xFF10B981)
+                                            .withOpacity(0.3),
+                                      ),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: const Color(0xFF059669)
+                                              .withOpacity(0.12),
+                                          blurRadius: 10,
+                                          offset: const Offset(0, 4),
+                                        ),
+                                      ],
+                                    ),
+                                    child: const Icon(
+                                      Icons.edit_rounded,
+                                      size: 18,
+                                      color: Color(0xFF059669),
+                                    ),
                                   ),
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 16),
+                          ],
+                        ),
+                        const SizedBox(height: 20),
 
-                            // Edit Profile Inline Action Button
-                            InkWell(
-                              onTap: _navigateToEditProfile,
-                              borderRadius: BorderRadius.circular(12),
-                              child: Container(
-                                width: double.infinity,
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 10,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: const Color(
-                                    0xFF10B981,
-                                  ).withOpacity(0.12),
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(
-                                    color: const Color(
-                                      0xFF10B981,
-                                    ).withOpacity(0.3),
+                        // Profile Main Card (Gloss Frosted)
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(24),
+                          child: BackdropFilter(
+                            filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+                            child: Container(
+                              padding: const EdgeInsets.all(20),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.7),
+                                borderRadius: BorderRadius.circular(24),
+                                border:
+                                    Border.all(color: Colors.white, width: 2),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: const Color(0xFF064E3B)
+                                        .withOpacity(0.08),
+                                    blurRadius: 28,
+                                    offset: const Offset(0, 12),
                                   ),
-                                ),
-                                child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    const Icon(
-                                      Icons.edit_note_rounded,
-                                      size: 19,
-                                      color: Color(0xFF064E3B),
-                                    ),
-                                    const SizedBox(width: 6),
-                                    Text(
-                                      'Edit Profile Details',
-                                      style: GoogleFonts.outfit(
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.bold,
-                                        color: const Color(0xFF064E3B),
+                                ],
+                              ),
+                              child: Column(
+                                children: [
+                                  Row(
+                                    children: [
+                                      // Avatar Icon
+                                      Container(
+                                        width: 68,
+                                        height: 68,
+                                        decoration: BoxDecoration(
+                                          shape: BoxShape.circle,
+                                          gradient: const LinearGradient(
+                                            colors: [
+                                              Color(0xFF34D399),
+                                              Color(0xFF059669),
+                                            ],
+                                            begin: Alignment.topLeft,
+                                            end: Alignment.bottomRight,
+                                          ),
+                                          border: Border.all(
+                                            color: Colors.white,
+                                            width: 2,
+                                          ),
+                                          boxShadow: [
+                                            BoxShadow(
+                                              color: const Color(0xFF059669)
+                                                  .withOpacity(0.3),
+                                              blurRadius: 15,
+                                              offset: const Offset(0, 6),
+                                            ),
+                                          ],
+                                        ),
+                                        child: const Icon(
+                                          Icons.person_rounded,
+                                          size: 40,
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 16),
+
+                                      // Name & Designation
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              displayName,
+                                              style: GoogleFonts.outfit(
+                                                fontSize: 18.5,
+                                                fontWeight: FontWeight.bold,
+                                                color: const Color(0xFF064E3B),
+                                              ),
+                                            ),
+                                            const SizedBox(height: 2),
+                                            Text(
+                                              displayDesignation,
+                                              style: GoogleFonts.outfit(
+                                                fontSize: 13,
+                                                color: const Color(0xFF059669),
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              displayEmail,
+                                              style: GoogleFonts.outfit(
+                                                fontSize: 12,
+                                                color: const Color(0xFF64748B),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 16),
+
+                                  // Edit Profile Inline Action Button
+                                  InkWell(
+                                    onTap: _navigateToEditProfile,
+                                    borderRadius: BorderRadius.circular(12),
+                                    child: Container(
+                                      width: double.infinity,
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 10,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFF10B981)
+                                            .withOpacity(0.12),
+                                        borderRadius: BorderRadius.circular(12),
+                                        border: Border.all(
+                                          color: const Color(0xFF10B981)
+                                              .withOpacity(0.3),
+                                        ),
+                                      ),
+                                      child: Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        children: [
+                                          const Icon(
+                                            Icons.edit_note_rounded,
+                                            size: 19,
+                                            color: Color(0xFF064E3B),
+                                          ),
+                                          const SizedBox(width: 6),
+                                          Text(
+                                            'Edit Profile Details',
+                                            style: GoogleFonts.outfit(
+                                              fontSize: 13,
+                                              fontWeight: FontWeight.bold,
+                                              color: const Color(0xFF064E3B),
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                     ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+
+                        const SizedBox(height: 18),
+
+                        // Quick Stats Row
+                        Row(
+                          children: [
+                            _buildStatCard(
+                              'Total Sales',
+                              stats?.totalSales != null
+                                  ? '৳${stats!.totalSales}'
+                                  : '৳0',
+                              Icons.trending_up_rounded,
+                              const Color(0xFF10B981),
+                            ),
+                            const SizedBox(width: 12),
+                            _buildStatCard(
+                              'Collected',
+                              stats?.totalCollected != null
+                                  ? '৳${stats!.totalCollected}'
+                                  : '৳0',
+                              Icons.account_balance_wallet_rounded,
+                              const Color(0xFF047857),
+                            ),
+                            const SizedBox(width: 12),
+                            _buildStatCard(
+                              'Orders',
+                              stats?.totalOrders != null
+                                  ? '${stats!.totalOrders} Booked'
+                                  : '0 Booked',
+                              Icons.shopping_bag_outlined,
+                              const Color(0xFF0D9488),
+                            ),
+                          ],
+                        ),
+
+                        const SizedBox(height: 22),
+
+                        // Official Information Card
+                        Text(
+                          'OFFICIAL INFORMATION',
+                          style: GoogleFonts.outfit(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 0.8,
+                            color: const Color(0xFF064E3B).withOpacity(0.7),
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(22),
+                          child: BackdropFilter(
+                            filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 18,
+                                vertical: 12,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.75),
+                                borderRadius: BorderRadius.circular(22),
+                                border:
+                                    Border.all(color: Colors.white, width: 1.5),
+                              ),
+                              child: Column(
+                                children: [
+                                  _buildInfoTile(
+                                    Icons.phone_outlined,
+                                    'Contact Mobile',
+                                    displayMobile,
+                                  ),
+                                  const Divider(
+                                      height: 18, color: Color(0xFFE2E8F0)),
+                                  _buildInfoTile(
+                                    Icons.location_on_outlined,
+                                    'Assigned Territory / Address',
+                                    displayTerritory,
+                                  ),
+                                  const Divider(
+                                      height: 18, color: Color(0xFFE2E8F0)),
+                                  _buildInfoTile(
+                                    Icons.supervisor_account_outlined,
+                                    'Reporting Supervisor',
+                                    displaySupervisor,
+                                  ),
+                                  const Divider(
+                                      height: 18, color: Color(0xFFE2E8F0)),
+                                  _buildInfoTile(
+                                    Icons.verified_user_outlined,
+                                    'System Role',
+                                    displayRole,
+                                  ),
+                                  if (profile?.salary != null) ...[
+                                    const Divider(
+                                        height: 18, color: Color(0xFFE2E8F0)),
+                                    _buildInfoTile(
+                                      Icons.payments_outlined,
+                                      'Base Salary',
+                                      '৳${profile!.salary}',
+                                    ),
+                                  ],
+                                  if (profile?.memberSince != null &&
+                                      profile!.memberSince!.isNotEmpty) ...[
+                                    const Divider(
+                                        height: 18, color: Color(0xFFE2E8F0)),
+                                    _buildInfoTile(
+                                      Icons.calendar_today_outlined,
+                                      'Member Since',
+                                      profile.memberSince!,
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+
+                        // Personal & Biographical Information (If Available)
+                        if (profile != null &&
+                            (profile.nid?.isNotEmpty == true ||
+                                profile.bloodGroup?.isNotEmpty == true ||
+                                profile.education?.isNotEmpty == true)) ...[
+                          const SizedBox(height: 22),
+                          Text(
+                            'PERSONAL & IDENTITY DETAILS',
+                            style: GoogleFonts.outfit(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 0.8,
+                              color: const Color(0xFF064E3B).withOpacity(0.7),
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(22),
+                            child: BackdropFilter(
+                              filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 18,
+                                  vertical: 12,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.75),
+                                  borderRadius: BorderRadius.circular(22),
+                                  border: Border.all(
+                                      color: Colors.white, width: 1.5),
+                                ),
+                                child: Column(
+                                  children: [
+                                    if (profile.bloodGroup?.isNotEmpty == true) ...[
+                                      _buildInfoTile(
+                                        Icons.bloodtype_outlined,
+                                        'Blood Group',
+                                        profile.bloodGroup!,
+                                      ),
+                                      const Divider(
+                                          height: 18,
+                                          color: Color(0xFFE2E8F0)),
+                                    ],
+                                    if (profile.nid?.isNotEmpty == true) ...[
+                                      _buildInfoTile(
+                                        Icons.badge_outlined,
+                                        'National ID (NID)',
+                                        profile.nid!,
+                                      ),
+                                      const Divider(
+                                          height: 18,
+                                          color: Color(0xFFE2E8F0)),
+                                    ],
+                                    if (profile.education?.isNotEmpty == true) ...[
+                                      _buildInfoTile(
+                                        Icons.school_outlined,
+                                        'Education',
+                                        profile.education!,
+                                      ),
+                                      const Divider(
+                                          height: 18,
+                                          color: Color(0xFFE2E8F0)),
+                                    ],
+                                    if (profile.permanentAddress?.isNotEmpty == true) ...[
+                                      _buildInfoTile(
+                                        Icons.home_outlined,
+                                        'Permanent Address',
+                                        profile.permanentAddress!,
+                                      ),
+                                    ],
                                   ],
                                 ),
                               ),
                             ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 18),
-
-                  // Quick Stats Row
-                  Row(
-                    children: [
-                      _buildStatCard(
-                        'Total Sales',
-                        '৳48.5K',
-                        Icons.trending_up_rounded,
-                        const Color(0xFF10B981),
-                      ),
-                      const SizedBox(width: 12),
-                      _buildStatCard(
-                        'Collected',
-                        '৳35.0K',
-                        Icons.account_balance_wallet_rounded,
-                        const Color(0xFF047857),
-                      ),
-                      const SizedBox(width: 12),
-                      _buildStatCard(
-                        'Orders',
-                        '14 Booked',
-                        Icons.shopping_bag_outlined,
-                        const Color(0xFF0D9488),
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 22),
-
-                  // Official Info Card
-                  Text(
-                    'OFFICIAL INFORMATION',
-                    style: GoogleFonts.outfit(
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 0.8,
-                      color: const Color(0xFF064E3B).withOpacity(0.7),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(22),
-                    child: BackdropFilter(
-                      filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 18,
-                          vertical: 12,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.75),
-                          borderRadius: BorderRadius.circular(22),
-                          border: Border.all(color: Colors.white, width: 1.5),
-                        ),
-                        child: Column(
-                          children: [
-                            _buildInfoTile(
-                              Icons.phone_outlined,
-                              'Contact Mobile',
-                              _mobile,
-                            ),
-                            const Divider(height: 18, color: Color(0xFFE2E8F0)),
-                            _buildInfoTile(
-                              Icons.location_on_outlined,
-                              'Assigned Territory',
-                              _territory,
-                            ),
-                            const Divider(height: 18, color: Color(0xFFE2E8F0)),
-                            _buildInfoTile(
-                              Icons.supervisor_account_outlined,
-                              'Reporting Supervisor',
-                              _supervisor,
-                            ),
-                            const Divider(height: 18, color: Color(0xFFE2E8F0)),
-                            _buildInfoTile(
-                              Icons.verified_user_outlined,
-                              'System Role',
-                              'Field Executive',
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 22),
-
-                  // Security Actions
-                  Text(
-                    'SECURITY & PREFERENCES',
-                    style: GoogleFonts.outfit(
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 0.8,
-                      color: const Color(0xFF064E3B).withOpacity(0.7),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-
-                  // Change Password Button
-                  InkWell(
-                    onTap: _showChangePasswordDialog,
-                    borderRadius: BorderRadius.circular(16),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 18,
-                        vertical: 14,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.75),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: Colors.white, width: 1.5),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(8),
-                                decoration: BoxDecoration(
-                                  color: const Color(
-                                    0xFF10B981,
-                                  ).withOpacity(0.12),
-                                  shape: BoxShape.circle,
-                                ),
-                                child: const Icon(
-                                  Icons.lock_reset_rounded,
-                                  size: 20,
-                                  color: Color(0xFF059669),
-                                ),
-                              ),
-                              const SizedBox(width: 14),
-                              Text(
-                                'Change Password',
-                                style: GoogleFonts.outfit(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600,
-                                  color: const Color(0xFF1E293B),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const Icon(
-                            Icons.arrow_forward_ios_rounded,
-                            size: 15,
-                            color: Color(0xFF94A3B8),
                           ),
                         ],
-                      ),
-                    ),
-                  ),
 
-                  const SizedBox(height: 12),
+                        const SizedBox(height: 22),
 
-                  // Logout Button
-                  InkWell(
-                    onTap: () async {
-                      await appData.write(kKeyIsLoggedIn, false);
-                      await appData.remove(kKeyUserRole);
-                      await appData.remove(kKeyUserEmail);
-
-                      if (!context.mounted) return;
-
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            'Logged out from duty session successfully',
-                            style: GoogleFonts.outfit(color: Colors.white),
-                          ),
-                          backgroundColor: const Color(0xFF064E3B),
-                          behavior: SnackBarBehavior.floating,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
+                        // Security Actions & Preferences
+                        Text(
+                          'SECURITY & PREFERENCES',
+                          style: GoogleFonts.outfit(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 0.8,
+                            color: const Color(0xFF064E3B).withOpacity(0.7),
                           ),
                         ),
-                      );
+                        const SizedBox(height: 10),
 
-                      NavigationService.navigateToUntilReplacement(
-                        Routes.logInScreen,
-                      );
-                    },
-                    borderRadius: BorderRadius.circular(16),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 18,
-                        vertical: 14,
-                      ),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFEE2E2).withOpacity(0.6),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                          color: const Color(0xFFFCA5A5).withOpacity(0.4),
-                          width: 1.2,
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(
-                            Icons.logout_rounded,
-                            size: 19,
-                            color: Color(0xFFDC2626),
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            'Logout Duty Session',
-                            style: GoogleFonts.outfit(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              color: const Color(0xFFDC2626),
+                        // Change Password Button
+                        InkWell(
+                          onTap: _showChangePasswordDialog,
+                          borderRadius: BorderRadius.circular(16),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 18,
+                              vertical: 14,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.75),
+                              borderRadius: BorderRadius.circular(16),
+                              border:
+                                  Border.all(color: Colors.white, width: 1.5),
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Row(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.all(8),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFF10B981)
+                                            .withOpacity(0.12),
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: const Icon(
+                                        Icons.lock_reset_rounded,
+                                        size: 20,
+                                        color: Color(0xFF059669),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 14),
+                                    Text(
+                                      'Change Password',
+                                      style: GoogleFonts.outfit(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w600,
+                                        color: const Color(0xFF1E293B),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const Icon(
+                                  Icons.arrow_forward_ios_rounded,
+                                  size: 15,
+                                  color: Color(0xFF94A3B8),
+                                ),
+                              ],
                             ),
                           ),
-                        ],
-                      ),
+                        ),
+
+                        const SizedBox(height: 12),
+
+                        // Logout Button (integrated with logoutRxObj API)
+                        InkWell(
+                          onTap: () async {
+                            final bool? shouldLogout = await showDialog<bool>(
+                              context: context,
+                              builder: (context) => AlertDialog(
+                                backgroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                title: Text(
+                                  'Confirm Logout',
+                                  style: GoogleFonts.outfit(
+                                    fontWeight: FontWeight.bold,
+                                    color: const Color(0xFF0F172A),
+                                  ),
+                                ),
+                                content: Text(
+                                  'Are you sure you want to end your duty session and log out?',
+                                  style: GoogleFonts.outfit(
+                                    color: const Color(0xFF475569),
+                                  ),
+                                ),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () =>
+                                        Navigator.pop(context, false),
+                                    child: Text(
+                                      'Cancel',
+                                      style: GoogleFonts.outfit(
+                                        color: const Color(0xFF64748B),
+                                      ),
+                                    ),
+                                  ),
+                                  ElevatedButton(
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor:
+                                          const Color(0xFFDC2626),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius:
+                                            BorderRadius.circular(10),
+                                      ),
+                                    ),
+                                    onPressed: () =>
+                                        Navigator.pop(context, true),
+                                    child: Text(
+                                      'Logout',
+                                      style: GoogleFonts.outfit(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+
+                            if (shouldLogout == true) {
+                              await logoutRxObj.postLogout();
+                            }
+                          },
+                          borderRadius: BorderRadius.circular(16),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 18,
+                              vertical: 14,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFEE2E2).withOpacity(0.6),
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                color: const Color(0xFFFCA5A5).withOpacity(0.4),
+                                width: 1.2,
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(
+                                  Icons.logout_rounded,
+                                  size: 19,
+                                  color: Color(0xFFDC2626),
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'Logout Duty Session',
+                                  style: GoogleFonts.outfit(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                    color: const Color(0xFFDC2626),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+
+                        const SizedBox(height: 25),
+                      ],
                     ),
                   ),
-
-                  const SizedBox(height: 25),
-                ],
-              ),
+                );
+              },
             ),
           ),
         ],

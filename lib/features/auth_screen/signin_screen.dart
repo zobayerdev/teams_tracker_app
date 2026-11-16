@@ -1,11 +1,13 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:location_tracker/common_widgets/custom_toast.dart';
 import 'package:location_tracker/constants/app_constants.dart';
 import 'package:location_tracker/helpers/all_routes.dart';
 import 'package:location_tracker/helpers/dev_auth.dart';
 import 'package:location_tracker/helpers/di.dart';
 import 'package:location_tracker/helpers/navigation_service.dart';
+import 'package:location_tracker/networks/api_acess.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -33,18 +35,9 @@ class _LoginScreenState extends State<LoginScreen> {
     final password = _passwordController.text.trim();
 
     if (email.isEmpty || password.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Please enter both email/phone and password',
-            style: GoogleFonts.outfit(color: Colors.white),
-          ),
-          backgroundColor: const Color(0xFF064E3B), // Deep emerald
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
+      customToastMessage(
+        'Error',
+        'Please enter both email/phone and password',
       );
       return;
     }
@@ -53,57 +46,46 @@ class _LoginScreenState extends State<LoginScreen> {
       _isLoading = true;
     });
 
-    // API call delay simulation
-    await Future.delayed(const Duration(milliseconds: 900));
+    final bool isSuccess = await loginRxObj.postLogin(
+      identifier: email,
+      password: password,
+    );
 
     if (!mounted) return;
-
-    final role = DevAuth.roleForCredentials(email: email, password: password);
 
     setState(() {
       _isLoading = false;
     });
 
-    if (role == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Invalid credentials! Use employee@gmail.com or supervisor@gmail.com with 123456',
-            style: GoogleFonts.outfit(color: Colors.white),
-          ),
-          backgroundColor: const Color(0xFFDC2626),
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
-      );
+    if (isSuccess) {
+      final String userRole =
+          (appData.read(kKeyUserRole) ?? '').toString().toLowerCase();
+
+      if (userRole == 'supervisor' ||
+          userRole == 'admin' ||
+          userRole == 'super_admin') {
+        NavigationService.navigateToUntilReplacement(Routes.supervisorBottomNav);
+      } else {
+        NavigationService.navigateToUntilReplacement(Routes.employeeBottomNav);
+      }
       return;
     }
 
-    final roleValue = DevAuth.storageValueForRole(role);
-    await appData.write(kKeyIsLoggedIn, true);
-    await appData.write(kKeyUserRole, roleValue);
-    await appData.write(kKeyUserEmail, email.toLowerCase());
+    // Fallback: Check if mock DevAuth credentials match for offline development
+    final role = DevAuth.roleForCredentials(email: email, password: password);
+    if (role != null) {
+      final roleValue = DevAuth.storageValueForRole(role);
+      await appData.write(kKeyIsLoggedIn, true);
+      await appData.write(kKeyUserRole, roleValue);
+      await appData.write(kKeyUserEmail, email.toLowerCase());
 
-    if (!mounted) return;
+      if (!mounted) return;
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          'Welcome back! Logged in as ${roleValue.toUpperCase()}',
-          style: GoogleFonts.outfit(color: Colors.white),
-        ),
-        backgroundColor: const Color(0xFF059669),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      ),
-    );
-
-    if (role == DevUserRole.employee) {
-      NavigationService.navigateToUntilReplacement(Routes.employeeBottomNav);
-    } else if (role == DevUserRole.supervisor) {
-      NavigationService.navigateToUntilReplacement(Routes.supervisorBottomNav);
+      if (role == DevUserRole.employee) {
+        NavigationService.navigateToUntilReplacement(Routes.employeeBottomNav);
+      } else if (role == DevUserRole.supervisor) {
+        NavigationService.navigateToUntilReplacement(Routes.supervisorBottomNav);
+      }
     }
   }
 

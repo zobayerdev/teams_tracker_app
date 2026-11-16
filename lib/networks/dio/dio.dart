@@ -20,7 +20,7 @@ final class DioSingleton {
 
   void create() {
     BaseOptions options = BaseOptions(
-      baseUrl: url,
+      baseUrl: baseUrl,
       connectTimeout: const Duration(milliseconds: 100000),
       receiveTimeout: const Duration(milliseconds: 100000),
       headers: {
@@ -50,7 +50,7 @@ final class DioSingleton {
       print("Dio update with auth token");
     }
     BaseOptions options = BaseOptions(
-      baseUrl: url,
+      baseUrl: baseUrl,
       responseType: ResponseType.json,
       headers: {
         NetworkConstants.ACCEPT: NetworkConstants.ACCEPT_TYPE,

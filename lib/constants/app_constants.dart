@@ -124,6 +124,7 @@ const String kKeyUserID = 'user_id';
 const String kKeyUserRole = "userRole";
 const String kKeyUserEmail = "userEmail";
 const String kKeyUserName = "userName";
+const String kKeyUserDesignation = "designation";
 const String kKeyUserAvatar = "userAvatar";
 const String kKeyAccessToken = 'access_token';
 const String kKeyRefreshToken = 'refresh_token';

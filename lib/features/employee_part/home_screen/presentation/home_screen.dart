@@ -11,8 +11,8 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   // Demo Officer Information
-  final String _officerName = "Rahim Ahmed";
-  final String _designation = "Field Sales Executive";
+  final String _officerName = appData.read(kKeyUserName);
+  final String _designation = appData.read(kKeyUserDesignation);
 
   // Real-time Device Tracking States
   final double _latitude = 23.7925;
