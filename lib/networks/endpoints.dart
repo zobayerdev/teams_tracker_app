@@ -28,4 +28,6 @@ final class Endpoints {
   // * Employee API
   static String getEmployeeProfile() => "/api_profile.php";
   static String sendAttendence() => "/api_attendance_toggle.php";
+  static String getAttendence() => "/api_my_attendance.php";
+  static String createCustomerInfo() => "/api_create_customer.php";
 }

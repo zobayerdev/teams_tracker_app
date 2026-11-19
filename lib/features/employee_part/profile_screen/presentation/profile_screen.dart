@@ -248,7 +248,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ? profile!.roleType!.replaceAll('_', ' ').toUpperCase()
                     : 'SALES REPRESENTATIVE';
 
-                    
                 //* ১. API রেসপন্স (stats) থেকে নিরাপদে ডাটা বের করে নেওয়া
                 String totalSales = (stats?.totalSales ?? 0).toString();
                 String totalOrders = (stats?.totalOrders ?? 0).toString();
@@ -258,6 +257,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 appData.write(kKeyTotalSales, totalSales);
                 appData.write(kKeyTotalOrders, totalOrders);
                 appData.write(kKeyTotalCollection, totalCollected);
+                if (profile?.id != null) {
+                  appData.write(kKeyUserID, profile!.id.toString());
+                }
 
                 if (isInitialLoading) {
                   return const Center(

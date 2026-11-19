@@ -48,10 +48,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   // final double _todaySales = 18450.0;
   // final double _todayCollection = 9200.0;
 
-  String _todaySales = (appData.read(kKeyTotalSales) ?? '0').toString();
-  String _todayOrders = (appData.read(kKeyTotalOrders) ?? '0').toString();
-  String _todayCollection = (appData.read(kKeyTotalCollection) ?? '0')
-      .toString();
+  final String _todaySales = (appData.read(kKeyTotalSales) ?? '0').toString();
+  final String _todayOrders = (appData.read(kKeyTotalOrders) ?? '0').toString();
+  final String _todayCollection =
+      (appData.read(kKeyTotalCollection) ?? '0').toString();
 
   // Real-time Battery States
   final Battery _battery = Battery();
@@ -59,12 +59,24 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   int _batteryLevel = 100;
   bool _isCharging = false;
 
+  int _getEmployeeId() {
+    final rawId = appData.read(kKeyUserID);
+    if (rawId != null) {
+      final parsed = int.tryParse(rawId.toString());
+      if (parsed != null && parsed > 0) return parsed;
+    }
+    return 1;
+  }
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _initBatteryLevel();
     _loadSavedAttendanceState();
+    if (appData.read(kKeyUserID) == null) {
+      getEmpProfileRxObj.getEmpProfile();
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initLiveLocation();
     });
@@ -380,8 +392,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final ownerNameController = TextEditingController();
     final phoneController = TextEditingController();
     final addressController = TextEditingController(
-      text: _latitude != null ? _currentAddress : '',
+      text:
+          (_currentAddress != "Detecting live location..." &&
+              !_currentAddress.contains("Error"))
+          ? _currentAddress
+          : '',
     );
+    bool isSubmitting = false;
 
     showModalBottomSheet(
       context: context,
@@ -389,146 +406,267 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       backgroundColor: Colors.transparent,
       barrierColor: Colors.black.withOpacity(0.35),
       builder: (context) {
-        return BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-          child: Padding(
-            padding: EdgeInsets.only(
-              bottom: MediaQuery.of(context).viewInsets.bottom,
-            ),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 22),
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.96),
-                borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(30),
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+              child: Padding(
+                padding: EdgeInsets.only(
+                  bottom: MediaQuery.of(context).viewInsets.bottom,
                 ),
-                border: Border.all(color: Colors.white, width: 2),
-              ),
-              child: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Center(
-                      child: Container(
-                        width: 44,
-                        height: 4.5,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFCBD5E1),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                      ),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 22,
+                    vertical: 22,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.96),
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(30),
                     ),
-                    const SizedBox(height: 16),
-                    Text(
-                      'Add New Customer / Shop',
-                      style: GoogleFonts.outfit(
-                        fontSize: 19,
-                        fontWeight: FontWeight.bold,
-                        color: const Color(0xFF064E3B),
-                      ),
-                    ),
-                    Text(
-                      'Register shop with realtime pinpoint GPS location',
-                      style: GoogleFonts.outfit(
-                        fontSize: 12,
-                        color: const Color(0xFF64748B),
-                      ),
-                    ),
-                    const SizedBox(height: 18),
-
-                    // Shop Name
-                    _buildModalTextField(
-                      'Shop Name',
-                      'e.g. Bismillah General Store',
-                      Icons.store_rounded,
-                      shopNameController,
-                    ),
-                    const SizedBox(height: 12),
-
-                    // Owner Name
-                    _buildModalTextField(
-                      'Owner Name',
-                      'e.g. Haji Mohammad Ali',
-                      Icons.person_outline_rounded,
-                      ownerNameController,
-                    ),
-                    const SizedBox(height: 12),
-
-                    // Phone Number
-                    _buildModalTextField(
-                      'Mobile Number',
-                      'e.g. 017XXXXXXXX',
-                      Icons.phone_android_rounded,
-                      phoneController,
-                      isPhone: true,
-                    ),
-                    const SizedBox(height: 12),
-
-                    // Address with current GPS coordinates badge
-                    _buildModalTextField(
-                      'Shop Address / Area',
-                      'Road, Market details',
-                      Icons.location_on_outlined,
-                      addressController,
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      _latitude != null && _longitude != null
-                          ? 'Auto GPS: ${_latitude!.toStringAsFixed(6)}, ${_longitude!.toStringAsFixed(6)}'
-                          : 'Auto GPS: Detecting location...',
-                      style: GoogleFonts.outfit(
-                        fontSize: 10.5,
-                        color: const Color(0xFF059669),
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-
-                    // Submit Button
-                    ElevatedButton(
-                      onPressed: () {
-                        if (shopNameController.text.trim().isEmpty ||
-                            phoneController.text.trim().isEmpty) {
-                          return;
-                        }
-                        Navigator.pop(context);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              'New Customer Added Successfully!',
-                              style: GoogleFonts.outfit(),
-                            ),
-                            backgroundColor: const Color(0xFF059669),
-                            behavior: SnackBarBehavior.floating,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.white, width: 2),
+                  ),
+                  child: SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Center(
+                          child: Container(
+                            width: 44,
+                            height: 4.5,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFCBD5E1),
+                              borderRadius: BorderRadius.circular(10),
                             ),
                           ),
-                        );
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF059669),
-                        minimumSize: const Size(double.infinity, 48),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
                         ),
-                      ),
-                      child: Text(
-                        'Save Shop Profile',
-                        style: GoogleFonts.outfit(
-                          fontSize: 15,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
+                        const SizedBox(height: 16),
+                        Text(
+                          'Add New Customer / Shop',
+                          style: GoogleFonts.outfit(
+                            fontSize: 19,
+                            fontWeight: FontWeight.bold,
+                            color: const Color(0xFF064E3B),
+                          ),
                         ),
-                      ),
+                        Text(
+                          'Register shop with realtime pinpoint GPS location',
+                          style: GoogleFonts.outfit(
+                            fontSize: 12,
+                            color: const Color(0xFF64748B),
+                          ),
+                        ),
+                        const SizedBox(height: 18),
+
+                        // Shop Name
+                        _buildModalTextField(
+                          'Shop Name',
+                          'e.g. Bismillah General Store',
+                          Icons.store_rounded,
+                          shopNameController,
+                        ),
+                        const SizedBox(height: 12),
+
+                        // Owner Name
+                        _buildModalTextField(
+                          'Owner Name',
+                          'e.g. Haji Mohammad Ali',
+                          Icons.person_outline_rounded,
+                          ownerNameController,
+                        ),
+                        const SizedBox(height: 12),
+
+                        // Phone Number
+                        _buildModalTextField(
+                          'Mobile Number',
+                          'e.g. 017XXXXXXXX',
+                          Icons.phone_android_rounded,
+                          phoneController,
+                          isPhone: true,
+                        ),
+                        const SizedBox(height: 12),
+
+                        // Address with current GPS coordinates badge
+                        _buildModalTextField(
+                          'Shop Address / Area',
+                          'Road, Market details',
+                          Icons.location_on_outlined,
+                          addressController,
+                        ),
+                        const SizedBox(height: 6),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                _latitude != null && _longitude != null
+                                    ? 'Auto GPS: ${_latitude!.toStringAsFixed(6)}, ${_longitude!.toStringAsFixed(6)}'
+                                    : 'Auto GPS: Detecting location...',
+                                style: GoogleFonts.outfit(
+                                  fontSize: 10.5,
+                                  color: const Color(0xFF059669),
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                            if (_latitude == null || _longitude == null)
+                              GestureDetector(
+                                onTap: () async {
+                                  try {
+                                    Position pos =
+                                        await Geolocator.getCurrentPosition();
+                                    setModalState(() {
+                                      _latitude = pos.latitude;
+                                      _longitude = pos.longitude;
+                                      if (addressController.text.isEmpty &&
+                                          _currentAddress.isNotEmpty) {
+                                        addressController.text =
+                                            _currentAddress;
+                                      }
+                                    });
+                                  } catch (_) {}
+                                },
+                                child: const Padding(
+                                  padding: EdgeInsets.symmetric(horizontal: 4),
+                                  child: Icon(
+                                    Icons.refresh_rounded,
+                                    size: 16,
+                                    color: Color(0xFF059669),
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 20),
+
+                        // Submit Button
+                        ElevatedButton(
+                          onPressed: isSubmitting
+                              ? null
+                              : () async {
+                                  final shopName = shopNameController.text
+                                      .trim();
+                                  final ownerName = ownerNameController.text
+                                      .trim();
+                                  final phone = phoneController.text.trim();
+                                  final address =
+                                      addressController.text.trim().isNotEmpty
+                                      ? addressController.text.trim()
+                                      : (_latitude != null
+                                            ? _currentAddress
+                                            : '');
+
+                                  if (shopName.isEmpty) {
+                                    customToastMessage(
+                                      'Warning',
+                                      'Please enter shop name',
+                                    );
+                                    return;
+                                  }
+                                  if (ownerName.isEmpty) {
+                                    customToastMessage(
+                                      'Warning',
+                                      'Please enter owner name',
+                                    );
+                                    return;
+                                  }
+                                  if (phone.isEmpty) {
+                                    customToastMessage(
+                                      'Warning',
+                                      'Please enter mobile number',
+                                    );
+                                    return;
+                                  }
+                                  if (address.isEmpty) {
+                                    customToastMessage(
+                                      'Warning',
+                                      'Please enter shop address',
+                                    );
+                                    return;
+                                  }
+
+                                  double lat = _latitude ?? 0.0;
+                                  double lng = _longitude ?? 0.0;
+                                  if (lat == 0.0 && lng == 0.0) {
+                                    try {
+                                      Position? pos =
+                                          await Geolocator.getLastKnownPosition();
+                                      pos ??=
+                                          await Geolocator.getCurrentPosition(
+                                            desiredAccuracy:
+                                                LocationAccuracy.high,
+                                            timeLimit: const Duration(
+                                              seconds: 3,
+                                            ),
+                                          );
+                                      lat = pos.latitude;
+                                      lng = pos.longitude;
+                                    } catch (_) {}
+                                  }
+
+                                  final int employeeId = _getEmployeeId();
+
+                                  setModalState(() {
+                                    isSubmitting = true;
+                                  });
+
+                                  final isSuccess =
+                                      await postCreateCustomerRxObj
+                                          .postCreateCustomer(
+                                            shopName: shopName,
+                                            ownerName: ownerName,
+                                            phone: phone,
+                                            address: address,
+                                            latitude: lat,
+                                            longitude: lng,
+                                            createdBy: employeeId,
+                                          );
+
+                                  if (context.mounted) {
+                                    setModalState(() {
+                                      isSubmitting = false;
+                                    });
+                                    if (isSuccess) {
+                                      Navigator.pop(context);
+                                    }
+                                  }
+                                },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF059669),
+                            disabledBackgroundColor: const Color(
+                              0xFF059669,
+                            ).withOpacity(0.6),
+                            minimumSize: const Size(double.infinity, 48),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                          ),
+                          child: isSubmitting
+                              ? const SizedBox(
+                                  height: 22,
+                                  width: 22,
+                                  child: CircularProgressIndicator(
+                                    color: Colors.white,
+                                    strokeWidth: 2.2,
+                                  ),
+                                )
+                              : Text(
+                                  'Save Shop Profile',
+                                  style: GoogleFonts.outfit(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                        ),
+                        const SizedBox(height: 10),
+                      ],
                     ),
-                    const SizedBox(height: 10),
-                  ],
+                  ),
                 ),
               ),
-            ),
-          ),
+            );
+          },
         );
       },
     );
