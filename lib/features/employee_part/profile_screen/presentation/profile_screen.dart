@@ -1,4 +1,4 @@
-// ignore_for_file: prefer_final_fields
+// ignore_for_file: unused_local_variable, prefer_final_fields
 
 import 'dart:ui';
 import 'package:google_fonts/google_fonts.dart';
@@ -107,7 +107,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ElevatedButton(
                 onPressed: () {
                   Navigator.pop(context);
-                  customToastMessage('Success', 'Password update request submitted');
+                  customToastMessage(
+                    'Success',
+                    'Password update request submitted',
+                  );
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF059669),
@@ -198,9 +201,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
               builder: (context, snapshot) {
                 final bool isInitialLoading =
                     snapshot.connectionState == ConnectionState.waiting &&
-                        (!snapshot.hasData ||
-                            (snapshot.data is Map &&
-                                (snapshot.data as Map).isEmpty));
+                    (!snapshot.hasData ||
+                        (snapshot.data is Map &&
+                            (snapshot.data as Map).isEmpty));
 
                 EmployeeProfileResponseModel? response;
                 if (snapshot.hasData &&
@@ -218,22 +221,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 final supervisor = response?.data?.supervisor;
                 final stats = response?.data?.statistics;
 
-                final String displayName =
-                    profile?.name?.isNotEmpty == true ? profile!.name! : _defaultName;
-                final String displayEmail =
-                    profile?.email?.isNotEmpty == true ? profile!.email! : _defaultEmail;
-                final String displayMobile =
-                    profile?.mobile?.isNotEmpty == true ? profile!.mobile! : _defaultMobile;
+                final String displayName = profile?.name?.isNotEmpty == true
+                    ? profile!.name!
+                    : _defaultName;
+                final String displayEmail = profile?.email?.isNotEmpty == true
+                    ? profile!.email!
+                    : _defaultEmail;
+                final String displayMobile = profile?.mobile?.isNotEmpty == true
+                    ? profile!.mobile!
+                    : _defaultMobile;
                 final String displayDesignation =
                     profile?.designation?.isNotEmpty == true
-                        ? profile!.designation!
-                        : _defaultDesignation;
-                final String displayStatus =
-                    profile?.status?.isNotEmpty == true ? profile!.status! : _defaultStatus;
+                    ? profile!.designation!
+                    : _defaultDesignation;
+                final String displayStatus = profile?.status?.isNotEmpty == true
+                    ? profile!.status!
+                    : _defaultStatus;
                 final String displayTerritory =
                     profile?.presentAddress?.isNotEmpty == true
-                        ? profile!.presentAddress!
-                        : _defaultTerritory;
+                    ? profile!.presentAddress!
+                    : _defaultTerritory;
                 final String displaySupervisor = supervisor?.name != null
                     ? "${supervisor!.name}${supervisor.phone != null ? ' (${supervisor.phone})' : ''}"
                     : _defaultSupervisor;
@@ -241,11 +248,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ? profile!.roleType!.replaceAll('_', ' ').toUpperCase()
                     : 'SALES REPRESENTATIVE';
 
+                    
+                //* ১. API রেসপন্স (stats) থেকে নিরাপদে ডাটা বের করে নেওয়া
+                String totalSales = (stats?.totalSales ?? 0).toString();
+                String totalOrders = (stats?.totalOrders ?? 0).toString();
+                String totalCollected = (stats?.totalCollected ?? 0).toString();
+
+                //* ২. লোকাল স্টোরেজে (GetStorage / appData) সেভ করা
+                appData.write(kKeyTotalSales, totalSales);
+                appData.write(kKeyTotalOrders, totalOrders);
+                appData.write(kKeyTotalCollection, totalCollected);
+
                 if (isInitialLoading) {
                   return const Center(
-                    child: CircularProgressIndicator(
-                      color: Color(0xFF10B981),
-                    ),
+                    child: CircularProgressIndicator(color: Color(0xFF10B981)),
                   );
                 }
 
@@ -288,8 +304,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                     color: Colors.white.withOpacity(0.85),
                                     borderRadius: BorderRadius.circular(20),
                                     border: Border.all(
-                                      color: const Color(0xFF10B981)
-                                          .withOpacity(0.4),
+                                      color: const Color(
+                                        0xFF10B981,
+                                      ).withOpacity(0.4),
                                     ),
                                   ),
                                   child: Row(
@@ -299,7 +316,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                         height: 7,
                                         decoration: BoxDecoration(
                                           shape: BoxShape.circle,
-                                          color: displayStatus.toLowerCase() ==
+                                          color:
+                                              displayStatus.toLowerCase() ==
                                                   'active'
                                               ? const Color(0xFF10B981)
                                               : Colors.amber,
@@ -328,13 +346,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                       color: Colors.white.withOpacity(0.9),
                                       shape: BoxShape.circle,
                                       border: Border.all(
-                                        color: const Color(0xFF10B981)
-                                            .withOpacity(0.3),
+                                        color: const Color(
+                                          0xFF10B981,
+                                        ).withOpacity(0.3),
                                       ),
                                       boxShadow: [
                                         BoxShadow(
-                                          color: const Color(0xFF059669)
-                                              .withOpacity(0.12),
+                                          color: const Color(
+                                            0xFF059669,
+                                          ).withOpacity(0.12),
                                           blurRadius: 10,
                                           offset: const Offset(0, 4),
                                         ),
@@ -363,12 +383,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               decoration: BoxDecoration(
                                 color: Colors.white.withOpacity(0.7),
                                 borderRadius: BorderRadius.circular(24),
-                                border:
-                                    Border.all(color: Colors.white, width: 2),
+                                border: Border.all(
+                                  color: Colors.white,
+                                  width: 2,
+                                ),
                                 boxShadow: [
                                   BoxShadow(
-                                    color: const Color(0xFF064E3B)
-                                        .withOpacity(0.08),
+                                    color: const Color(
+                                      0xFF064E3B,
+                                    ).withOpacity(0.08),
                                     blurRadius: 28,
                                     offset: const Offset(0, 12),
                                   ),
@@ -398,8 +421,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                           ),
                                           boxShadow: [
                                             BoxShadow(
-                                              color: const Color(0xFF059669)
-                                                  .withOpacity(0.3),
+                                              color: const Color(
+                                                0xFF059669,
+                                              ).withOpacity(0.3),
                                               blurRadius: 15,
                                               offset: const Offset(0, 6),
                                             ),
@@ -461,12 +485,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                         vertical: 10,
                                       ),
                                       decoration: BoxDecoration(
-                                        color: const Color(0xFF10B981)
-                                            .withOpacity(0.12),
+                                        color: const Color(
+                                          0xFF10B981,
+                                        ).withOpacity(0.12),
                                         borderRadius: BorderRadius.circular(12),
                                         border: Border.all(
-                                          color: const Color(0xFF10B981)
-                                              .withOpacity(0.3),
+                                          color: const Color(
+                                            0xFF10B981,
+                                          ).withOpacity(0.3),
                                         ),
                                       ),
                                       child: Row(
@@ -557,8 +583,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               decoration: BoxDecoration(
                                 color: Colors.white.withOpacity(0.75),
                                 borderRadius: BorderRadius.circular(22),
-                                border:
-                                    Border.all(color: Colors.white, width: 1.5),
+                                border: Border.all(
+                                  color: Colors.white,
+                                  width: 1.5,
+                                ),
                               ),
                               child: Column(
                                 children: [
@@ -568,21 +596,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                     displayMobile,
                                   ),
                                   const Divider(
-                                      height: 18, color: Color(0xFFE2E8F0)),
+                                    height: 18,
+                                    color: Color(0xFFE2E8F0),
+                                  ),
                                   _buildInfoTile(
                                     Icons.location_on_outlined,
                                     'Assigned Territory / Address',
                                     displayTerritory,
                                   ),
                                   const Divider(
-                                      height: 18, color: Color(0xFFE2E8F0)),
+                                    height: 18,
+                                    color: Color(0xFFE2E8F0),
+                                  ),
                                   _buildInfoTile(
                                     Icons.supervisor_account_outlined,
                                     'Reporting Supervisor',
                                     displaySupervisor,
                                   ),
                                   const Divider(
-                                      height: 18, color: Color(0xFFE2E8F0)),
+                                    height: 18,
+                                    color: Color(0xFFE2E8F0),
+                                  ),
                                   _buildInfoTile(
                                     Icons.verified_user_outlined,
                                     'System Role',
@@ -590,7 +624,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   ),
                                   if (profile?.salary != null) ...[
                                     const Divider(
-                                        height: 18, color: Color(0xFFE2E8F0)),
+                                      height: 18,
+                                      color: Color(0xFFE2E8F0),
+                                    ),
                                     _buildInfoTile(
                                       Icons.payments_outlined,
                                       'Base Salary',
@@ -600,7 +636,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   if (profile?.memberSince != null &&
                                       profile!.memberSince!.isNotEmpty) ...[
                                     const Divider(
-                                        height: 18, color: Color(0xFFE2E8F0)),
+                                      height: 18,
+                                      color: Color(0xFFE2E8F0),
+                                    ),
                                     _buildInfoTile(
                                       Icons.calendar_today_outlined,
                                       'Member Since',
@@ -642,19 +680,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   color: Colors.white.withOpacity(0.75),
                                   borderRadius: BorderRadius.circular(22),
                                   border: Border.all(
-                                      color: Colors.white, width: 1.5),
+                                    color: Colors.white,
+                                    width: 1.5,
+                                  ),
                                 ),
                                 child: Column(
                                   children: [
-                                    if (profile.bloodGroup?.isNotEmpty == true) ...[
+                                    if (profile.bloodGroup?.isNotEmpty ==
+                                        true) ...[
                                       _buildInfoTile(
                                         Icons.bloodtype_outlined,
                                         'Blood Group',
                                         profile.bloodGroup!,
                                       ),
                                       const Divider(
-                                          height: 18,
-                                          color: Color(0xFFE2E8F0)),
+                                        height: 18,
+                                        color: Color(0xFFE2E8F0),
+                                      ),
                                     ],
                                     if (profile.nid?.isNotEmpty == true) ...[
                                       _buildInfoTile(
@@ -663,20 +705,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                         profile.nid!,
                                       ),
                                       const Divider(
-                                          height: 18,
-                                          color: Color(0xFFE2E8F0)),
+                                        height: 18,
+                                        color: Color(0xFFE2E8F0),
+                                      ),
                                     ],
-                                    if (profile.education?.isNotEmpty == true) ...[
+                                    if (profile.education?.isNotEmpty ==
+                                        true) ...[
                                       _buildInfoTile(
                                         Icons.school_outlined,
                                         'Education',
                                         profile.education!,
                                       ),
                                       const Divider(
-                                          height: 18,
-                                          color: Color(0xFFE2E8F0)),
+                                        height: 18,
+                                        color: Color(0xFFE2E8F0),
+                                      ),
                                     ],
-                                    if (profile.permanentAddress?.isNotEmpty == true) ...[
+                                    if (profile.permanentAddress?.isNotEmpty ==
+                                        true) ...[
                                       _buildInfoTile(
                                         Icons.home_outlined,
                                         'Permanent Address',
@@ -716,8 +762,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             decoration: BoxDecoration(
                               color: Colors.white.withOpacity(0.75),
                               borderRadius: BorderRadius.circular(16),
-                              border:
-                                  Border.all(color: Colors.white, width: 1.5),
+                              border: Border.all(
+                                color: Colors.white,
+                                width: 1.5,
+                              ),
                             ),
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -727,8 +775,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                     Container(
                                       padding: const EdgeInsets.all(8),
                                       decoration: BoxDecoration(
-                                        color: const Color(0xFF10B981)
-                                            .withOpacity(0.12),
+                                        color: const Color(
+                                          0xFF10B981,
+                                        ).withOpacity(0.12),
                                         shape: BoxShape.circle,
                                       ),
                                       child: const Icon(
@@ -796,11 +845,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   ),
                                   ElevatedButton(
                                     style: ElevatedButton.styleFrom(
-                                      backgroundColor:
-                                          const Color(0xFFDC2626),
+                                      backgroundColor: const Color(0xFFDC2626),
                                       shape: RoundedRectangleBorder(
-                                        borderRadius:
-                                            BorderRadius.circular(10),
+                                        borderRadius: BorderRadius.circular(10),
                                       ),
                                     ),
                                     onPressed: () =>

@@ -22,9 +22,7 @@ final class LogoutRx extends RxResponseInt<Map> {
   Future<bool> postLogout() async {
     try {
       final token = appData.read(kKeyAccessToken)?.toString() ?? '';
-      Map<String, dynamic> data = {
-        "access_token": token,
-      };
+      Map<String, dynamic> data = {"access_token": token};
 
       Map resdata = await api.postLogout(data);
       return await handleSuccessWithReturn(resdata);

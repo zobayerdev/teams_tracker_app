@@ -27,4 +27,5 @@ final class Endpoints {
 
   // * Employee API
   static String getEmployeeProfile() => "/api_profile.php";
+  static String sendAttendence() => "/api_attendance_toggle.php";
 }

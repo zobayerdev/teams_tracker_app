@@ -131,6 +131,11 @@ const String kKeyRefreshToken = 'refresh_token';
 const String kKeyIsSecurityQuestionsSet = 'is_security_questions_set';
 const String kKeyIsExaminationSelected = 'is_examination_selected';
 
+//* Sales Data
+const String kKeyTotalSales = 'kKeyTotalSales';
+const String kKeyTotalOrders = 'kKeyTotalOrders';
+const String kKeyTotalCollection = 'kKeyTotalCollection';
+
 const List<String> kLanguagesKey = [
   kKeyEnglish,
   kKeyPortuguese,

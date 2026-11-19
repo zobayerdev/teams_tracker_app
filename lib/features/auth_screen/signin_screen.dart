@@ -35,10 +35,7 @@ class _LoginScreenState extends State<LoginScreen> {
     final password = _passwordController.text.trim();
 
     if (email.isEmpty || password.isEmpty) {
-      customToastMessage(
-        'Error',
-        'Please enter both email/phone and password',
-      );
+      customToastMessage('Error', 'Please enter both email/phone and password');
       return;
     }
 
@@ -58,13 +55,16 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     if (isSuccess) {
-      final String userRole =
-          (appData.read(kKeyUserRole) ?? '').toString().toLowerCase();
+      final String userRole = (appData.read(kKeyUserRole) ?? '')
+          .toString()
+          .toLowerCase();
 
       if (userRole == 'supervisor' ||
           userRole == 'admin' ||
           userRole == 'super_admin') {
-        NavigationService.navigateToUntilReplacement(Routes.supervisorBottomNav);
+        NavigationService.navigateToUntilReplacement(
+          Routes.supervisorBottomNav,
+        );
       } else {
         NavigationService.navigateToUntilReplacement(Routes.employeeBottomNav);
       }
@@ -84,7 +84,9 @@ class _LoginScreenState extends State<LoginScreen> {
       if (role == DevUserRole.employee) {
         NavigationService.navigateToUntilReplacement(Routes.employeeBottomNav);
       } else if (role == DevUserRole.supervisor) {
-        NavigationService.navigateToUntilReplacement(Routes.supervisorBottomNav);
+        NavigationService.navigateToUntilReplacement(
+          Routes.supervisorBottomNav,
+        );
       }
     }
   }

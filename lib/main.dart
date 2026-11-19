@@ -5,14 +5,17 @@ import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import 'package:location_tracker/assets_helper/app_colors.dart';
 import 'package:location_tracker/constants/app_constants.dart';
 import 'package:location_tracker/features/auth_screen/signin_screen.dart';
 import 'package:location_tracker/features/employee_part/employee_bottom_nav.dart';
 import 'package:location_tracker/features/supervisor_part/supervisor_bottom_nav.dart';
 import 'package:location_tracker/helpers/all_routes.dart';
+import 'package:location_tracker/helpers/attendance_hive_helper.dart';
 import 'package:location_tracker/helpers/di.dart';
 import 'package:location_tracker/helpers/navigation_service.dart';
+import 'package:location_tracker/helpers/post_login.dart';
 import 'package:location_tracker/networks/dio/dio.dart';
 
 Future<void> main() async {
@@ -21,11 +24,16 @@ Future<void> main() async {
   // Initialize GetStorage
   await GetStorage.init();
 
+  // Initialize Hive
+  await Hive.initFlutter();
+  await Hive.openBox(AttendanceHiveHelper.boxName);
+
   // Setup Dependency Injection
   diSetup();
 
-  // Initialize Dio Client
+  // Initialize Dio Client and restore token if logged in
   DioSingleton.instance.create();
+  await performPostLoginActions();
 
   // Configure Status Bar
   SystemChrome.setSystemUIOverlayStyle(
