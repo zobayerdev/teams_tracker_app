@@ -1,6 +1,10 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:location_tracker/common_widgets/custom_toast.dart';
+import 'package:location_tracker/constants/app_constants.dart';
+import 'package:location_tracker/helpers/di.dart';
+import 'package:location_tracker/networks/api_acess.dart';
 import 'package:location_tracker/features/supervisor_part/supervisor_profile_screen/supervisor_edit_profile_screen.dart';
 
 class SupervisorProfileScreen extends StatefulWidget {
@@ -201,101 +205,289 @@ class _SupervisorProfileScreenState extends State<SupervisorProfileScreen> {
   }
 
   void _showChangePasswordDialog() {
-    final oldPassController = TextEditingController();
     final newPassController = TextEditingController();
+    final confirmPassController = TextEditingController();
+    bool obscureNew = true;
+    bool obscureConfirm = true;
+    bool isUpdating = false;
 
     showDialog(
       context: context,
-      builder: (context) {
-        return BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-          child: AlertDialog(
-            backgroundColor: Colors.white.withOpacity(0.95),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(24),
-            ),
-            title: Text(
-              'Change Supervisor Password',
-              style: GoogleFonts.outfit(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: const Color(0xFF064E3B),
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              backgroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(22),
               ),
-            ),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: oldPassController,
-                  obscureText: true,
-                  decoration: InputDecoration(
-                    labelText: 'Current Password',
-                    labelStyle: GoogleFonts.outfit(
-                      color: const Color(0xFF475569),
+              title: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF10B981).withOpacity(0.12),
+                      shape: BoxShape.circle,
                     ),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
+                    child: const Icon(
+                      Icons.lock_reset_rounded,
+                      size: 20,
+                      color: Color(0xFF059669),
                     ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
-                      borderSide: const BorderSide(color: Color(0xFF10B981)),
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    'Change Password',
+                    style: GoogleFonts.outfit(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: const Color(0xFF064E3B),
+                    ),
+                  ),
+                ],
+              ),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Set a new secure password for your supervisor account',
+                      style: GoogleFonts.outfit(
+                        fontSize: 12,
+                        color: const Color(0xFF64748B),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: newPassController,
+                      obscureText: obscureNew,
+                      style: GoogleFonts.outfit(
+                        fontSize: 13.5,
+                        color: const Color(0xFF0F172A),
+                      ),
+                      decoration: InputDecoration(
+                        labelText: 'New Password',
+                        labelStyle: GoogleFonts.outfit(
+                          color: const Color(0xFF64748B),
+                          fontSize: 13,
+                        ),
+                        prefixIcon: const Icon(
+                          Icons.lock_outline_rounded,
+                          size: 18,
+                          color: Color(0xFF059669),
+                        ),
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            obscureNew
+                                ? Icons.visibility_off_outlined
+                                : Icons.visibility_outlined,
+                            size: 18,
+                            color: const Color(0xFF94A3B8),
+                          ),
+                          onPressed: () {
+                            setDialogState(() {
+                              obscureNew = !obscureNew;
+                            });
+                          },
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          borderSide: const BorderSide(
+                            color: Color(0xFFE2E8F0),
+                          ),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          borderSide: const BorderSide(
+                            color: Color(0xFFE2E8F0),
+                          ),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          borderSide: const BorderSide(
+                            color: Color(0xFF10B981),
+                            width: 1.5,
+                          ),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 12,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: confirmPassController,
+                      obscureText: obscureConfirm,
+                      style: GoogleFonts.outfit(
+                        fontSize: 13.5,
+                        color: const Color(0xFF0F172A),
+                      ),
+                      decoration: InputDecoration(
+                        labelText: 'Confirm Password',
+                        labelStyle: GoogleFonts.outfit(
+                          color: const Color(0xFF64748B),
+                          fontSize: 13,
+                        ),
+                        prefixIcon: const Icon(
+                          Icons.lock_outline_rounded,
+                          size: 18,
+                          color: Color(0xFF059669),
+                        ),
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            obscureConfirm
+                                ? Icons.visibility_off_outlined
+                                : Icons.visibility_outlined,
+                            size: 18,
+                            color: const Color(0xFF94A3B8),
+                          ),
+                          onPressed: () {
+                            setDialogState(() {
+                              obscureConfirm = !obscureConfirm;
+                            });
+                          },
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          borderSide: const BorderSide(
+                            color: Color(0xFFE2E8F0),
+                          ),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          borderSide: const BorderSide(
+                            color: Color(0xFFE2E8F0),
+                          ),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          borderSide: const BorderSide(
+                            color: Color(0xFF10B981),
+                            width: 1.5,
+                          ),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 12,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed:
+                      isUpdating ? null : () => Navigator.pop(dialogContext),
+                  child: Text(
+                    'Cancel',
+                    style: GoogleFonts.outfit(
+                      color: const Color(0xFF64748B),
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                 ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: newPassController,
-                  obscureText: true,
-                  decoration: InputDecoration(
-                    labelText: 'New Password',
-                    labelStyle: GoogleFonts.outfit(
-                      color: const Color(0xFF475569),
+                ElevatedButton(
+                  onPressed: isUpdating
+                      ? null
+                      : () async {
+                          final newPass = newPassController.text.trim();
+                          final confirmPass =
+                              confirmPassController.text.trim();
+
+                          if (newPass.isEmpty) {
+                            customToastMessage(
+                              'Warning',
+                              'Please enter new password',
+                            );
+                            return;
+                          }
+                          if (newPass.length < 6) {
+                            customToastMessage(
+                              'Warning',
+                              'Password must be at least 6 characters',
+                            );
+                            return;
+                          }
+                          if (confirmPass.isEmpty) {
+                            customToastMessage(
+                              'Warning',
+                              'Please confirm your password',
+                            );
+                            return;
+                          }
+                          if (newPass != confirmPass) {
+                            customToastMessage(
+                              'Warning',
+                              'Passwords do not match',
+                            );
+                            return;
+                          }
+
+                          final userId = appData.read(kKeyUserID);
+                          if (userId == null) {
+                            customToastMessage(
+                              'Error',
+                              'User ID not found. Please log in again.',
+                            );
+                            return;
+                          }
+
+                          setDialogState(() {
+                            isUpdating = true;
+                          });
+
+                          final isSuccess =
+                              await postChangePasswordRxObj.changePassword(
+                            userId: userId,
+                            newPassword: newPass,
+                            confirmPassword: confirmPass,
+                          );
+
+                          if (dialogContext.mounted) {
+                            setDialogState(() {
+                              isUpdating = false;
+                            });
+
+                            if (isSuccess) {
+                              Navigator.pop(dialogContext);
+                            }
+                          }
+                        },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF059669),
+                    disabledBackgroundColor:
+                        const Color(0xFF059669).withOpacity(0.6),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
                     ),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
-                      borderSide: const BorderSide(color: Color(0xFF10B981)),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 18,
+                      vertical: 10,
                     ),
                   ),
+                  child: isUpdating
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : Text(
+                          'Update Password',
+                          style: GoogleFonts.outfit(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                 ),
               ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: Text(
-                  'Cancel',
-                  style: GoogleFonts.outfit(color: Colors.grey),
-                ),
-              ),
-              ElevatedButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        'Supervisor credential updated successfully!',
-                        style: GoogleFonts.outfit(),
-                      ),
-                      backgroundColor: const Color(0xFF059669),
-                    ),
-                  );
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF059669),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                child: Text(
-                  'Update',
-                  style: GoogleFonts.outfit(color: Colors.white),
-                ),
-              ),
-            ],
-          ),
+            );
+          },
         );
       },
     );

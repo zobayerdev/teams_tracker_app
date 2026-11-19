@@ -1,7 +1,10 @@
+import 'dart:async';
 import 'dart:core';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:location_tracker/features/employee_part/home_screen/model/customer_response_model.dart';
+import 'package:location_tracker/networks/api_acess.dart';
 
 class SupervisorViewCustomerScreen extends StatefulWidget {
   const SupervisorViewCustomerScreen({super.key});
@@ -17,7 +20,7 @@ class _SupervisorViewCustomerScreenState
   String _selectedOfficerFilter = 'All';
 
   // Demo Customers Database (api_supervisor_customers.php theke dynamic hobe)
-  final List _customerShops = [
+  List _customerShops = [
     {
       'id': 'CUST-301',
       'shop_name': 'Rahman Brothers General Store',
@@ -80,8 +83,48 @@ class _SupervisorViewCustomerScreenState
     },
   ];
 
+  StreamSubscription? _customerSub;
+
+  @override
+  void initState() {
+    super.initState();
+    getCustomerRxObj.fetchCustomers();
+    _customerSub = getCustomerRxObj.fillData.listen((data) {
+      if (!mounted) return;
+      if (data.isNotEmpty && data['data'] != null) {
+        try {
+          final res = CustomerResponseModel.fromJson(
+            Map<String, dynamic>.from(data),
+          );
+          if (res.data.isNotEmpty) {
+            setState(() {
+              _customerShops = res.data.map((c) {
+                return {
+                  'id': 'CUST-${c.id}',
+                  'shop_name': c.shopName,
+                  'proprietor': c.ownerName,
+                  'phone': c.phone,
+                  'address': c.address,
+                  'added_by_name': (c.createdByName != null &&
+                          c.createdByName!.isNotEmpty)
+                      ? c.createdByName!
+                      : 'Employee #${c.createdBy}',
+                  'added_by_id': 'EMP-${c.createdBy}',
+                  'added_date': c.createdAt ?? '',
+                  'lat': c.latitude,
+                  'lng': c.longitude,
+                };
+              }).toList();
+            });
+          }
+        } catch (_) {}
+      }
+    });
+  }
+
   @override
   void dispose() {
+    _customerSub?.cancel();
     _searchController.dispose();
     super.dispose();
   }

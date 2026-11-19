@@ -1,6 +1,9 @@
+import 'dart:async';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:location_tracker/features/employee_part/catalog_screen/model/product_response_model.dart';
+import 'package:location_tracker/networks/api_acess.dart';
 
 class SupervisorViewCatalogScreen extends StatefulWidget {
   const SupervisorViewCatalogScreen({super.key});
@@ -16,7 +19,7 @@ class _SupervisorViewCatalogScreenState
   String _selectedCategory = 'All';
 
   // Demo Product Catalog Database (api_supervisor_catalog.php থেকে ডাইনামিক হবে)
-  final List _catalogProducts = [
+  List _catalogProducts = [
     {
       'id': 'PRD-01',
       'sku': 'EGG-BR-01',
@@ -125,8 +128,47 @@ class _SupervisorViewCatalogScreenState
     'Packaging',
   ];
 
+  StreamSubscription? _productSub;
+
+  @override
+  void initState() {
+    super.initState();
+    getProductRxObj.fetchProduct();
+    _productSub = getProductRxObj.fillData.listen((data) {
+      if (!mounted) return;
+      if (data.isNotEmpty && data['data'] != null) {
+        try {
+          final res = ProductResponseModel.fromJson(
+            Map<String, dynamic>.from(data),
+          );
+          if (res.data.isNotEmpty) {
+            setState(() {
+              _catalogProducts = res.data.map((p) {
+                return {
+                  'id': 'PRD-${p.id}',
+                  'sku': p.productCode,
+                  'name': p.productName,
+                  'category': 'General',
+                  'unit': 'Piece',
+                  'unit_price': p.shopPrice.toDouble(),
+                  'crate_price': p.depoPrice.toDouble(),
+                  'crate_size': '${p.piecePerBox} Pcs Box',
+                  'stock': p.stockQuantity,
+                  'min_alert_stock': 10,
+                  'is_available': p.stockQuantity > 0,
+                  'last_restocked': 'Today',
+                };
+              }).toList();
+            });
+          }
+        } catch (_) {}
+      }
+    });
+  }
+
   @override
   void dispose() {
+    _productSub?.cancel();
     _searchController.dispose();
     super.dispose();
   }

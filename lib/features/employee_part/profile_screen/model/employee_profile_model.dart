@@ -84,6 +84,8 @@ class ProfileModel {
   String? permanentAddress;
   num? salary;
   String? memberSince;
+  String? profileImage;
+  String? profileImageUrl;
 
   ProfileModel({
     this.id,
@@ -105,6 +107,8 @@ class ProfileModel {
     this.permanentAddress,
     this.salary,
     this.memberSince,
+    this.profileImage,
+    this.profileImageUrl,
   });
 
   factory ProfileModel.fromJson(Map<String, dynamic> json) => ProfileModel(
@@ -127,6 +131,8 @@ class ProfileModel {
         permanentAddress: json["permanent_address"]?.toString(),
         salary: json["salary"] is num ? json["salary"] : num.tryParse(json["salary"]?.toString() ?? ''),
         memberSince: json["member_since"]?.toString(),
+        profileImage: json["profile_image"]?.toString(),
+        profileImageUrl: json["profile_image_url"]?.toString(),
       );
 
   Map<String, dynamic> toJson() => {
@@ -149,6 +155,8 @@ class ProfileModel {
         "permanent_address": permanentAddress,
         "salary": salary,
         "member_since": memberSince,
+        "profile_image": profileImage,
+        "profile_image_url": profileImageUrl,
       };
 }
 

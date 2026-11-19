@@ -8,6 +8,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:location_tracker/common_widgets/common_import.dart';
+import 'package:location_tracker/features/employee_part/profile_screen/model/employee_profile_model.dart';
 import 'package:location_tracker/main.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -74,9 +75,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     _initBatteryLevel();
     _loadSavedAttendanceState();
-    if (appData.read(kKeyUserID) == null) {
-      getEmpProfileRxObj.getEmpProfile();
-    }
+    getEmpProfileRxObj.getEmpProfile();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initLiveLocation();
     });
@@ -827,88 +826,146 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     );
   }
 
-  // 1. Top Header Profile Greeting
+  // 1. Top Header Profile Greeting with Dynamic Avatar
   Widget _buildTopHeader() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Expanded(
-          child: Row(
-            children: [
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFF34D399), Color(0xFF059669)],
-                  ),
-                  border: Border.all(color: Colors.white, width: 2),
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFF059669).withOpacity(0.25),
-                      blurRadius: 10,
-                      offset: const Offset(0, 4),
+    return StreamBuilder(
+      stream: getEmpProfileRxObj.fillData,
+      builder: (context, snapshot) {
+        String officerName =
+            appData.read(kKeyUserName)?.toString() ?? _officerName;
+        String designation =
+            appData.read(kKeyUserDesignation)?.toString() ?? _designation;
+        String? avatarUrl = appData.read(kKeyUserAvatar)?.toString();
+
+        if (snapshot.hasData &&
+            snapshot.data is Map &&
+            (snapshot.data as Map).isNotEmpty) {
+          try {
+            final res = EmployeeProfileResponseModel.fromJson(
+              Map<String, dynamic>.from(snapshot.data!),
+            );
+            final p = res.data?.profile;
+            if (p != null) {
+              if (p.name != null && p.name!.isNotEmpty) {
+                officerName = p.name!;
+              }
+              if (p.designation != null && p.designation!.isNotEmpty) {
+                designation = p.designation!;
+              }
+              if (p.profileImageUrl != null &&
+                  p.profileImageUrl!.isNotEmpty) {
+                avatarUrl = p.profileImageUrl!;
+              } else if (p.profileImage != null &&
+                  p.profileImage!.isNotEmpty) {
+                avatarUrl = p.profileImage!;
+              }
+            }
+          } catch (_) {}
+        }
+
+        return Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Expanded(
+              child: Row(
+                children: [
+                  GestureDetector(
+                    onTap: () {
+                      NavigationService.navigateTo(Routes.profileScreen);
+                    },
+                    child: Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFF34D399), Color(0xFF059669)],
+                        ),
+                        border: Border.all(color: Colors.white, width: 2),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFF059669).withOpacity(0.25),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: ClipOval(
+                        child: (avatarUrl != null && avatarUrl.isNotEmpty)
+                            ? Image.network(
+                                avatarUrl,
+                                width: 48,
+                                height: 48,
+                                fit: BoxFit.cover,
+                                errorBuilder:
+                                    (context, error, stackTrace) =>
+                                        const Icon(
+                                  Icons.person_rounded,
+                                  color: Colors.white,
+                                  size: 28,
+                                ),
+                              )
+                            : const Icon(
+                                Icons.person_rounded,
+                                color: Colors.white,
+                                size: 28,
+                              ),
+                      ),
                     ),
-                  ],
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          officerName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.outfit(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: const Color(0xFF064E3B),
+                          ),
+                        ),
+                        Text(
+                          designation,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.outfit(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                            color: const Color(0xFF059669),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            GestureDetector(
+              onTap: () {
+                NavigationService.navigateTo(Routes.notificationScreen);
+              },
+              child: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.85),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
                 ),
                 child: const Icon(
-                  Icons.person_rounded,
-                  color: Colors.white,
-                  size: 28,
+                  Icons.notifications_none_rounded,
+                  size: 20,
+                  color: Color(0xFF064E3B),
                 ),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      _officerName,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.outfit(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: const Color(0xFF064E3B),
-                      ),
-                    ),
-                    Text(
-                      _designation,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.outfit(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                        color: const Color(0xFF059669),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(width: 8),
-        GestureDetector(
-          onTap: () {
-            NavigationService.navigateTo(Routes.notificationScreen);
-          },
-          child: Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.85),
-              shape: BoxShape.circle,
-              border: Border.all(color: const Color(0xFFE2E8F0)),
             ),
-            child: const Icon(
-              Icons.notifications_none_rounded,
-              size: 20,
-              color: Color(0xFF064E3B),
-            ),
-          ),
-        ),
-      ],
+          ],
+        );
+      },
     );
   }
 

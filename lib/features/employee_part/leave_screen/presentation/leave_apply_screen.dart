@@ -1,6 +1,9 @@
-import 'dart:ui';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:location_tracker/common_widgets/custom_toast.dart';
+import 'package:location_tracker/features/employee_part/leave_screen/model/leave_model.dart';
+import 'package:location_tracker/networks/api_acess.dart';
 
 class LeaveApplyScreen extends StatefulWidget {
   const LeaveApplyScreen({super.key});
@@ -10,43 +13,72 @@ class LeaveApplyScreen extends StatefulWidget {
 }
 
 class _LeaveApplyScreenState extends State<LeaveApplyScreen> {
-  // Demo Leave History Records (api_leaves.php theke fetch hobe)
-  final List _leaveRecords = [
-    {
-      'id': 1,
-      'type': 'Sick Leave',
-      'from_date': '2026-11-10',
-      'to_date': '2026-11-12',
-      'days': 3,
-      'reason':
-          'Severe viral flu and doctor recommended 3 days complete bed rest.',
-      'status': 'pending', // 'pending', 'approved', 'rejected'
-      'applied_at': '2026-11-03',
-      'supervisor_remarks': null,
-    },
-    {
-      'id': 2,
-      'type': 'Casual Leave',
-      'from_date': '2026-10-14',
-      'to_date': '2026-10-15',
-      'days': 2,
-      'reason': 'Family emergency at village home.',
-      'status': 'approved',
-      'applied_at': '2026-10-10',
-      'supervisor_remarks': 'Approved by Supervisor Nayem.',
-    },
-    {
-      'id': 3,
-      'type': 'Emergency Leave',
-      'from_date': '2026-09-05',
-      'to_date': '2026-09-05',
-      'days': 1,
-      'reason': 'Urgent bank and legal document verification.',
-      'status': 'approved',
-      'applied_at': '2026-09-04',
-      'supervisor_remarks': 'Approved.',
-    },
-  ];
+  List<LeaveModel> _leaves = [];
+  LeaveSummaryModel? _summary;
+  bool _isLoading = true;
+  StreamSubscription? _leaveSub;
+
+  final Map<String, String> _categoryOptions = {
+    'Sick Leave': 'sick',
+    'Casual Leave': 'casual',
+    'Annual Leave': 'annual',
+    'Emergency Leave': 'emergency',
+  };
+
+  @override
+  void initState() {
+    super.initState();
+    _initData();
+  }
+
+  void _initData() {
+    getMyLeavesRxObj.fetchMyLeaves();
+
+    _leaveSub = getMyLeavesRxObj.fillData.listen((data) {
+      if (!mounted) return;
+      if (data.isNotEmpty && data['data'] != null) {
+        try {
+          final res = LeaveHistoryResponseModel.fromJson(
+            Map<String, dynamic>.from(data),
+          );
+          setState(() {
+            _leaves = res.data;
+            _summary = res.summary;
+            _isLoading = false;
+          });
+        } catch (_) {
+          setState(() => _isLoading = false);
+        }
+      } else {
+        setState(() => _isLoading = false);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _leaveSub?.cancel();
+    super.dispose();
+  }
+
+  String _formatDate(DateTime d) {
+    return "${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}";
+  }
+
+  String _formatCategoryName(String? raw) {
+    if (raw == null || raw.isEmpty) return 'Leave';
+    final lower = raw.toLowerCase().trim();
+    if (lower == 'sick' || lower == 'sick leave') return 'Sick Leave';
+    if (lower == 'casual' || lower == 'casual leave') return 'Casual Leave';
+    if (lower == 'annual' || lower == 'annual leave') return 'Annual Leave';
+    if (lower == 'emergency' || lower == 'emergency leave') {
+      return 'Emergency Leave';
+    }
+    return raw
+        .split('_')
+        .map((w) => w.isNotEmpty ? '${w[0].toUpperCase()}${w.substring(1)}' : '')
+        .join(' ');
+  }
 
   // Open Leave Application Modal
   void _showApplyLeaveModal() {
@@ -54,37 +86,44 @@ class _LeaveApplyScreenState extends State<LeaveApplyScreen> {
     DateTime fromDate = DateTime.now().add(const Duration(days: 1));
     DateTime toDate = DateTime.now().add(const Duration(days: 1));
     final reasonController = TextEditingController();
-    final emergencyPhoneController = TextEditingController();
+    bool isSubmitting = false;
 
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      barrierColor: Colors.black.withOpacity(0.35),
-      builder: (context) {
+      barrierColor: Colors.black.withOpacity(0.4),
+      builder: (modalContext) {
         return StatefulBuilder(
-          builder: (context, setModalState) {
+          builder: (builderContext, setModalState) {
             final int totalDays = toDate.difference(fromDate).inDays + 1;
+            final keyboardPadding =
+                MediaQuery.of(builderContext).viewInsets.bottom;
+            final maxHeight =
+                MediaQuery.of(builderContext).size.height * 0.85;
 
-            return BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-              child: Padding(
-                padding: EdgeInsets.only(
-                  bottom: MediaQuery.of(context).viewInsets.bottom,
-                ),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 22,
-                    vertical: 22,
+            return Container(
+              constraints: BoxConstraints(maxHeight: maxHeight),
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black12,
+                    blurRadius: 20,
+                    offset: Offset(0, -4),
                   ),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.96),
-                    borderRadius: const BorderRadius.vertical(
-                      top: Radius.circular(30),
-                    ),
-                    border: Border.all(color: Colors.white, width: 2),
-                  ),
+                ],
+              ),
+              child: SafeArea(
+                top: false,
+                child: Padding(
+                  padding: EdgeInsets.only(bottom: keyboardPadding),
                   child: SingleChildScrollView(
+                    keyboardDismissBehavior:
+                        ScrollViewKeyboardDismissBehavior.onDrag,
+                    physics: const ClampingScrollPhysics(),
+                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -99,7 +138,7 @@ class _LeaveApplyScreenState extends State<LeaveApplyScreen> {
                             ),
                           ),
                         ),
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 14),
                         Text(
                           'Apply for Leave',
                           style: GoogleFonts.outfit(
@@ -115,7 +154,7 @@ class _LeaveApplyScreenState extends State<LeaveApplyScreen> {
                             color: const Color(0xFF64748B),
                           ),
                         ),
-                        const SizedBox(height: 18),
+                        const SizedBox(height: 16),
 
                         // Leave Type Selection
                         Text(
@@ -144,25 +183,19 @@ class _LeaveApplyScreenState extends State<LeaveApplyScreen> {
                                 color: Color(0xFF064E3B),
                               ),
                               value: selectedType,
-                              items:
-                                  [
-                                    'Sick Leave',
-                                    'Casual Leave',
-                                    'Annual Leave',
-                                    'Emergency Leave',
-                                  ].map((t) {
-                                    return DropdownMenuItem(
-                                      value: t,
-                                      child: Text(
-                                        t,
-                                        style: GoogleFonts.outfit(
-                                          fontSize: 13.5,
-                                          fontWeight: FontWeight.bold,
-                                          color: const Color(0xFF0F172A),
-                                        ),
-                                      ),
-                                    );
-                                  }).toList(),
+                              items: _categoryOptions.keys.map((t) {
+                                return DropdownMenuItem(
+                                  value: t,
+                                  child: Text(
+                                    t,
+                                    style: GoogleFonts.outfit(
+                                      fontSize: 13.5,
+                                      fontWeight: FontWeight.bold,
+                                      color: const Color(0xFF0F172A),
+                                    ),
+                                  ),
+                                );
+                              }).toList(),
                               onChanged: (val) {
                                 if (val != null) {
                                   setModalState(() {
@@ -194,11 +227,13 @@ class _LeaveApplyScreenState extends State<LeaveApplyScreen> {
                                   InkWell(
                                     onTap: () async {
                                       final picked = await showDatePicker(
-                                        context: context,
+                                        context: builderContext,
                                         initialDate: fromDate,
-                                        firstDate: DateTime.now(),
+                                        firstDate: DateTime.now().subtract(
+                                          const Duration(days: 30),
+                                        ),
                                         lastDate: DateTime.now().add(
-                                          const Duration(days: 90),
+                                          const Duration(days: 120),
                                         ),
                                       );
                                       if (picked != null) {
@@ -223,17 +258,20 @@ class _LeaveApplyScreenState extends State<LeaveApplyScreen> {
                                         ),
                                       ),
                                       child: Row(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.spaceBetween,
                                         children: [
-                                          Text(
-                                            "${fromDate.year}-${fromDate.month.toString().padLeft(2, '0')}-${fromDate.day.toString().padLeft(2, '0')}",
-                                            style: GoogleFonts.outfit(
-                                              fontSize: 12.5,
-                                              fontWeight: FontWeight.bold,
-                                              color: const Color(0xFF0F172A),
+                                          Expanded(
+                                            child: Text(
+                                              _formatDate(fromDate),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: GoogleFonts.outfit(
+                                                fontSize: 12.5,
+                                                fontWeight: FontWeight.bold,
+                                                color: const Color(0xFF0F172A),
+                                              ),
                                             ),
                                           ),
+                                          const SizedBox(width: 4),
                                           const Icon(
                                             Icons.calendar_today_outlined,
                                             size: 14,
@@ -263,13 +301,13 @@ class _LeaveApplyScreenState extends State<LeaveApplyScreen> {
                                   InkWell(
                                     onTap: () async {
                                       final picked = await showDatePicker(
-                                        context: context,
+                                        context: builderContext,
                                         initialDate: toDate.isBefore(fromDate)
                                             ? fromDate
                                             : toDate,
                                         firstDate: fromDate,
                                         lastDate: DateTime.now().add(
-                                          const Duration(days: 90),
+                                          const Duration(days: 120),
                                         ),
                                       );
                                       if (picked != null) {
@@ -291,17 +329,20 @@ class _LeaveApplyScreenState extends State<LeaveApplyScreen> {
                                         ),
                                       ),
                                       child: Row(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.spaceBetween,
                                         children: [
-                                          Text(
-                                            "${toDate.year}-${toDate.month.toString().padLeft(2, '0')}-${toDate.day.toString().padLeft(2, '0')}",
-                                            style: GoogleFonts.outfit(
-                                              fontSize: 12.5,
-                                              fontWeight: FontWeight.bold,
-                                              color: const Color(0xFF0F172A),
+                                          Expanded(
+                                            child: Text(
+                                              _formatDate(toDate),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: GoogleFonts.outfit(
+                                                fontSize: 12.5,
+                                                fontWeight: FontWeight.bold,
+                                                color: const Color(0xFF0F172A),
+                                              ),
                                             ),
                                           ),
+                                          const SizedBox(width: 4),
                                           const Icon(
                                             Icons.calendar_today_outlined,
                                             size: 14,
@@ -374,107 +415,75 @@ class _LeaveApplyScreenState extends State<LeaveApplyScreen> {
                             ),
                           ),
                         ),
-                        const SizedBox(height: 12),
-
-                        // Emergency Contact Mobile
-                        Text(
-                          'Emergency Contact (Optional)',
-                          style: GoogleFonts.outfit(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: const Color(0xFF1E293B),
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Container(
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: const Color(0xFFE2E8F0)),
-                          ),
-                          child: TextField(
-                            controller: emergencyPhoneController,
-                            keyboardType: TextInputType.phone,
-                            style: GoogleFonts.outfit(
-                              fontSize: 13,
-                              color: const Color(0xFF0F172A),
-                            ),
-                            decoration: InputDecoration(
-                              hintText: 'e.g. 017XXXXXXXX',
-                              hintStyle: GoogleFonts.outfit(
-                                fontSize: 12.5,
-                                color: const Color(0xFF94A3B8),
-                              ),
-                              prefixIcon: const Icon(
-                                Icons.phone_outlined,
-                                size: 18,
-                                color: Color(0xFF059669),
-                              ),
-                              border: InputBorder.none,
-                              contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 14,
-                                vertical: 12,
-                              ),
-                            ),
-                          ),
-                        ),
                         const SizedBox(height: 20),
 
                         // Submit Application Button
                         ElevatedButton(
-                          onPressed: () {
-                            if (reasonController.text.trim().isEmpty) {
-                              return;
-                            }
-                            Navigator.pop(context);
+                          onPressed: isSubmitting
+                              ? null
+                              : () async {
+                                  final reason = reasonController.text.trim();
+                                  if (reason.isEmpty) {
+                                    customToastMessage(
+                                      'Warning',
+                                      'Please enter reason for leave',
+                                    );
+                                    return;
+                                  }
 
-                            setState(() {
-                              _leaveRecords.insert(0, {
-                                'id': DateTime.now().millisecondsSinceEpoch,
-                                'type': selectedType,
-                                'from_date':
-                                    "${fromDate.year}-${fromDate.month.toString().padLeft(2, '0')}-${fromDate.day.toString().padLeft(2, '0')}",
-                                'to_date':
-                                    "${toDate.year}-${toDate.month.toString().padLeft(2, '0')}-${toDate.day.toString().padLeft(2, '0')}",
-                                'days': totalDays,
-                                'reason': reasonController.text.trim(),
-                                'status': 'pending',
-                                'applied_at': DateTime.now()
-                                    .toString()
-                                    .substring(0, 10),
-                                'supervisor_remarks': null,
-                              });
-                            });
+                                  setModalState(() {
+                                    isSubmitting = true;
+                                  });
 
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  'Leave application submitted for approval!',
-                                  style: GoogleFonts.outfit(),
-                                ),
-                                backgroundColor: const Color(0xFF059669),
-                                behavior: SnackBarBehavior.floating,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                              ),
-                            );
-                          },
+                                  final categoryKey =
+                                      _categoryOptions[selectedType] ?? 'sick';
+
+                                  final isSuccess =
+                                      await postApplyLeaveRxObj.postApplyLeave(
+                                    leaveType: categoryKey,
+                                    startDate: _formatDate(fromDate),
+                                    endDate: _formatDate(toDate),
+                                    reason: reason,
+                                  );
+
+                                  if (builderContext.mounted) {
+                                    setModalState(() {
+                                      isSubmitting = false;
+                                    });
+
+                                    if (isSuccess) {
+                                      getMyLeavesRxObj.fetchMyLeaves();
+                                      Navigator.pop(builderContext);
+                                    }
+                                  }
+                                },
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFF059669),
+                            disabledBackgroundColor: const Color(
+                              0xFF059669,
+                            ).withOpacity(0.6),
                             minimumSize: const Size(double.infinity, 48),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(14),
                             ),
                           ),
-                          child: Text(
-                            'Submit Leave Request',
-                            style: GoogleFonts.outfit(
-                              fontSize: 15,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                            ),
-                          ),
+                          child: isSubmitting
+                              ? const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2.2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : Text(
+                                  'Submit Leave Request',
+                                  style: GoogleFonts.outfit(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                  ),
+                                ),
                         ),
                         const SizedBox(height: 8),
                       ],
@@ -496,7 +505,7 @@ class _LeaveApplyScreenState extends State<LeaveApplyScreen> {
     return Scaffold(
       body: Stack(
         children: [
-          // 1. Pristine Fresh Green & White Gradient Background
+          // 1. Fresh Gradient Background
           Container(
             height: size.height,
             width: size.width,
@@ -522,14 +531,7 @@ class _LeaveApplyScreenState extends State<LeaveApplyScreen> {
               height: 220,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: const Color(0xFF34D399).withOpacity(0.35),
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFF10B981).withOpacity(0.35),
-                    blurRadius: 90,
-                    spreadRadius: 25,
-                  ),
-                ],
+                color: const Color(0xFF34D399).withOpacity(0.25),
               ),
             ),
           ),
@@ -541,14 +543,7 @@ class _LeaveApplyScreenState extends State<LeaveApplyScreen> {
               height: 240,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: const Color(0xFFA7F3D0).withOpacity(0.35),
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFF059669).withOpacity(0.2),
-                    blurRadius: 100,
-                    spreadRadius: 30,
-                  ),
-                ],
+                color: const Color(0xFFA7F3D0).withOpacity(0.25),
               ),
             ),
           ),
@@ -558,51 +553,60 @@ class _LeaveApplyScreenState extends State<LeaveApplyScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Top App Bar
+                // Top App Bar - Completely Responsive
                 Padding(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 16,
-                    vertical: 10,
+                    vertical: 8,
                   ),
                   child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Row(
-                        children: [
-                          IconButton(
-                            onPressed: () => Navigator.pop(context),
-                            icon: Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.9),
-                                shape: BoxShape.circle,
-                                border: Border.all(
-                                  color: const Color(0xFFE2E8F0),
-                                ),
-                              ),
-                              child: const Icon(
-                                Icons.arrow_back_ios_new_rounded,
-                                size: 16,
-                                color: Color(0xFF064E3B),
-                              ),
+                      IconButton(
+                        onPressed: () => Navigator.pop(context),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        icon: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: const Color(0xFFE2E8F0),
                             ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.04),
+                                blurRadius: 6,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
                           ),
-                          const SizedBox(width: 6),
-                          Text(
-                            'Leave Applications',
-                            style: GoogleFonts.outfit(
-                              fontSize: 22,
-                              fontWeight: FontWeight.bold,
-                              color: const Color(0xFF064E3B),
-                            ),
+                          child: const Icon(
+                            Icons.arrow_back_ios_new_rounded,
+                            size: 15,
+                            color: Color(0xFF064E3B),
                           ),
-                        ],
+                        ),
                       ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'Leave Applications',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.outfit(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: const Color(0xFF064E3B),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
 
                       // Apply Leave Button
                       InkWell(
                         onTap: _showApplyLeaveModal,
-                        borderRadius: BorderRadius.circular(20),
+                        borderRadius: BorderRadius.circular(18),
                         child: Container(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 12,
@@ -612,16 +616,17 @@ class _LeaveApplyScreenState extends State<LeaveApplyScreen> {
                             gradient: const LinearGradient(
                               colors: [Color(0xFF10B981), Color(0xFF047857)],
                             ),
-                            borderRadius: BorderRadius.circular(20),
+                            borderRadius: BorderRadius.circular(18),
                             boxShadow: [
                               BoxShadow(
                                 color: const Color(0xFF10B981).withOpacity(0.3),
-                                blurRadius: 8,
-                                offset: const Offset(0, 3),
+                                blurRadius: 6,
+                                offset: const Offset(0, 2),
                               ),
                             ],
                           ),
                           child: Row(
+                            mainAxisSize: MainAxisSize.min,
                             children: [
                               const Icon(
                                 Icons.add_rounded,
@@ -645,29 +650,35 @@ class _LeaveApplyScreenState extends State<LeaveApplyScreen> {
                   ),
                 ),
 
-                // Annual Leave Quota Summary Cards
+                // Leave History Summary Cards (from API summary)
                 Padding(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 18,
+                    horizontal: 16,
                     vertical: 6,
                   ),
                   child: Row(
                     children: [
                       _buildQuotaCard(
-                        'Casual',
-                        '8 Left',
+                        'Approved',
+                        '${_summary?.approved ?? 0}',
                         const Color(0xFF10B981),
                       ),
-                      const SizedBox(width: 10),
+                      const SizedBox(width: 6),
                       _buildQuotaCard(
-                        'Sick',
-                        '11 Left',
-                        const Color(0xFF059669),
+                        'Pending',
+                        '${_summary?.pending ?? 0}',
+                        const Color(0xFFF59E0B),
                       ),
-                      const SizedBox(width: 10),
+                      const SizedBox(width: 6),
                       _buildQuotaCard(
-                        'Annual',
-                        '14 Left',
+                        'Rejected',
+                        '${_summary?.rejected ?? 0}',
+                        const Color(0xFFEF4444),
+                      ),
+                      const SizedBox(width: 6),
+                      _buildQuotaCard(
+                        'Total',
+                        '${_summary?.totalApplied ?? 0}',
                         const Color(0xFF0D9488),
                       ),
                     ],
@@ -677,7 +688,7 @@ class _LeaveApplyScreenState extends State<LeaveApplyScreen> {
                 const SizedBox(height: 12),
 
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 18),
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
                   child: Text(
                     'MY LEAVE REQUEST HISTORY',
                     style: GoogleFonts.outfit(
@@ -692,235 +703,356 @@ class _LeaveApplyScreenState extends State<LeaveApplyScreen> {
 
                 // Leaves History List
                 Expanded(
-                  child: _leaveRecords.isEmpty
-                      ? Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(18),
-                                decoration: BoxDecoration(
-                                  color: const Color(
-                                    0xFF10B981,
-                                  ).withOpacity(0.12),
-                                  shape: BoxShape.circle,
-                                ),
-                                child: const Icon(
-                                  Icons.event_note_outlined,
-                                  size: 40,
-                                  color: Color(0xFF059669),
-                                ),
-                              ),
-                              const SizedBox(height: 12),
-                              Text(
-                                'No Leave Requests',
-                                style: GoogleFonts.outfit(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                  color: const Color(0xFF064E3B),
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                'Submit a leave request by tapping Apply Leave above',
-                                style: GoogleFonts.outfit(
-                                  fontSize: 12,
-                                  color: const Color(0xFF64748B),
-                                ),
-                              ),
-                            ],
+                  child: _isLoading
+                      ? const Center(
+                          child: CircularProgressIndicator(
+                            color: Color(0xFF059669),
                           ),
                         )
-                      : ListView.separated(
-                          physics: const BouncingScrollPhysics(),
-                          padding: const EdgeInsets.fromLTRB(18, 4, 18, 24),
-                          itemCount: _leaveRecords.length,
-                          separatorBuilder: (context, index) =>
-                              const SizedBox(height: 12),
-                          itemBuilder: (context, index) {
-                            final item = _leaveRecords[index];
-                            final status = item['status'] as String;
-
-                            Color statusColor;
-                            String statusLabel;
-
-                            if (status == 'approved') {
-                              statusColor = const Color(0xFF10B981);
-                              statusLabel = 'APPROVED';
-                            } else if (status == 'pending') {
-                              statusColor = const Color(0xFFF59E0B);
-                              statusLabel = 'PENDING';
-                            } else {
-                              statusColor = const Color(0xFFEF4444);
-                              statusLabel = 'REJECTED';
-                            }
-
-                            return ClipRRect(
-                              borderRadius: BorderRadius.circular(20),
-                              child: BackdropFilter(
-                                filter: ImageFilter.blur(
-                                  sigmaX: 16,
-                                  sigmaY: 16,
-                                ),
-                                child: Container(
-                                  padding: const EdgeInsets.all(16),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white.withOpacity(0.76),
-                                    borderRadius: BorderRadius.circular(20),
-                                    border: Border.all(
-                                      color: Colors.white,
-                                      width: 1.8,
-                                    ),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: const Color(
-                                          0xFF064E3B,
-                                        ).withOpacity(0.05),
-                                        blurRadius: 16,
-                                        offset: const Offset(0, 6),
-                                      ),
-                                    ],
-                                  ),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      // Type & Status
-                                      Row(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.spaceBetween,
-                                        children: [
-                                          Text(
-                                            item['type'],
-                                            style: GoogleFonts.outfit(
-                                              fontSize: 15,
-                                              fontWeight: FontWeight.bold,
-                                              color: const Color(0xFF0F172A),
-                                            ),
-                                          ),
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 8,
-                                              vertical: 3,
-                                            ),
-                                            decoration: BoxDecoration(
-                                              color: statusColor.withOpacity(
-                                                0.14,
-                                              ),
-                                              borderRadius:
-                                                  BorderRadius.circular(8),
-                                            ),
-                                            child: Text(
-                                              statusLabel,
-                                              style: GoogleFonts.outfit(
-                                                fontSize: 10,
-                                                fontWeight: FontWeight.bold,
-                                                color: statusColor,
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 6),
-
-                                      // Dates & Duration
-                                      Row(
-                                        children: [
-                                          const Icon(
-                                            Icons.date_range_outlined,
-                                            size: 14,
-                                            color: Color(0xFF059669),
-                                          ),
-                                          const SizedBox(width: 4),
-                                          Text(
-                                            '${item['from_date']} to ${item['to_date']}',
-                                            style: GoogleFonts.outfit(
-                                              fontSize: 12.5,
-                                              fontWeight: FontWeight.w600,
-                                              color: const Color(0xFF064E3B),
-                                            ),
-                                          ),
-                                          const SizedBox(width: 8),
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 6,
-                                              vertical: 1.5,
-                                            ),
-                                            decoration: BoxDecoration(
-                                              color: const Color(0xFFF1F5F9),
-                                              borderRadius:
-                                                  BorderRadius.circular(6),
-                                            ),
-                                            child: Text(
-                                              '${item['days']} Day${item['days'] > 1 ? 's' : ''}',
-                                              style: GoogleFonts.outfit(
-                                                fontSize: 10.5,
-                                                fontWeight: FontWeight.bold,
-                                                color: const Color(0xFF475569),
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 6),
-
-                                      // Reason
-                                      Text(
-                                        item['reason'],
-                                        style: GoogleFonts.outfit(
-                                          fontSize: 12,
-                                          color: const Color(0xFF64748B),
-                                          height: 1.35,
+                      : RefreshIndicator(
+                          color: const Color(0xFF059669),
+                          onRefresh: () async {
+                            await getMyLeavesRxObj.fetchMyLeaves();
+                          },
+                          child: _leaves.isEmpty
+                              ? LayoutBuilder(
+                                  builder: (context, constraints) {
+                                    return SingleChildScrollView(
+                                      physics:
+                                          const AlwaysScrollableScrollPhysics(),
+                                      child: ConstrainedBox(
+                                        constraints: BoxConstraints(
+                                          minHeight: constraints.maxHeight,
                                         ),
-                                      ),
-
-                                      // Supervisor remarks (if any)
-                                      if (item['supervisor_remarks'] !=
-                                          null) ...[
-                                        const SizedBox(height: 10),
-                                        Container(
-                                          padding: const EdgeInsets.all(8),
-                                          decoration: BoxDecoration(
-                                            color: const Color(0xFFECFDF5),
-                                            borderRadius: BorderRadius.circular(
-                                              10,
-                                            ),
-                                            border: Border.all(
-                                              color: const Color(
-                                                0xFF10B981,
-                                              ).withOpacity(0.25),
-                                            ),
-                                          ),
-                                          child: Row(
+                                        child: Center(
+                                          child: Column(
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.center,
                                             children: [
-                                              const Icon(
-                                                Icons.comment_outlined,
-                                                size: 13,
-                                                color: Color(0xFF059669),
+                                              Container(
+                                                padding:
+                                                    const EdgeInsets.all(18),
+                                                decoration: BoxDecoration(
+                                                  color: const Color(
+                                                    0xFF10B981,
+                                                  ).withOpacity(0.12),
+                                                  shape: BoxShape.circle,
+                                                ),
+                                                child: const Icon(
+                                                  Icons.event_note_outlined,
+                                                  size: 40,
+                                                  color: Color(0xFF059669),
+                                                ),
                                               ),
-                                              const SizedBox(width: 6),
-                                              Expanded(
-                                                child: Text(
-                                                  item['supervisor_remarks'],
-                                                  style: GoogleFonts.outfit(
-                                                    fontSize: 11,
-                                                    color: const Color(
-                                                      0xFF047857,
-                                                    ),
-                                                    fontWeight: FontWeight.w500,
-                                                  ),
+                                              const SizedBox(height: 12),
+                                              Text(
+                                                'No Leave Requests',
+                                                style: GoogleFonts.outfit(
+                                                  fontSize: 16,
+                                                  fontWeight: FontWeight.bold,
+                                                  color:
+                                                      const Color(0xFF064E3B),
+                                                ),
+                                              ),
+                                              const SizedBox(height: 4),
+                                              Text(
+                                                'Submit a leave request by tapping Apply Leave above',
+                                                style: GoogleFonts.outfit(
+                                                  fontSize: 12,
+                                                  color:
+                                                      const Color(0xFF64748B),
                                                 ),
                                               ),
                                             ],
                                           ),
                                         ),
-                                      ],
-                                    ],
+                                      ),
+                                    );
+                                  },
+                                )
+                              : ListView.separated(
+                                  physics: const BouncingScrollPhysics(
+                                    parent: AlwaysScrollableScrollPhysics(),
                                   ),
+                                  padding: const EdgeInsets.fromLTRB(
+                                    16,
+                                    4,
+                                    16,
+                                    24,
+                                  ),
+                                  itemCount: _leaves.length,
+                                  separatorBuilder: (context, index) =>
+                                      const SizedBox(height: 12),
+                                  itemBuilder: (context, index) {
+                                    final item = _leaves[index];
+                                    final status =
+                                        (item.finalStatus ?? 'pending')
+                                            .toLowerCase();
+
+                                    Color statusColor;
+                                    String statusLabel;
+
+                                    if (status == 'approved') {
+                                      statusColor = const Color(0xFF10B981);
+                                      statusLabel = 'APPROVED';
+                                    } else if (status == 'pending') {
+                                      statusColor = const Color(0xFFF59E0B);
+                                      statusLabel = 'PENDING';
+                                    } else {
+                                      statusColor = const Color(0xFFEF4444);
+                                      statusLabel = 'REJECTED';
+                                    }
+
+                                    return Container(
+                                      padding: const EdgeInsets.all(15),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white,
+                                        borderRadius:
+                                            BorderRadius.circular(18),
+                                        border: Border.all(
+                                          color: const Color(0xFFE2E8F0),
+                                          width: 1.2,
+                                        ),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: const Color(0xFF064E3B)
+                                                .withOpacity(0.04),
+                                            blurRadius: 10,
+                                            offset: const Offset(0, 3),
+                                          ),
+                                        ],
+                                      ),
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          // Type & Status
+                                          Row(
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.spaceBetween,
+                                            children: [
+                                              Expanded(
+                                                child: Text(
+                                                  _formatCategoryName(
+                                                    item.leaveType,
+                                                  ),
+                                                  maxLines: 1,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                  style: GoogleFonts.outfit(
+                                                    fontSize: 15,
+                                                    fontWeight:
+                                                        FontWeight.bold,
+                                                    color: const Color(
+                                                      0xFF0F172A,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
+                                              const SizedBox(width: 8),
+                                              Container(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                  horizontal: 8,
+                                                  vertical: 3,
+                                                ),
+                                                decoration: BoxDecoration(
+                                                  color: statusColor
+                                                      .withOpacity(0.14),
+                                                  borderRadius:
+                                                      BorderRadius.circular(8),
+                                                ),
+                                                child: Text(
+                                                  statusLabel,
+                                                  style: GoogleFonts.outfit(
+                                                    fontSize: 10,
+                                                    fontWeight:
+                                                        FontWeight.bold,
+                                                    color: statusColor,
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 6),
+
+                                          // Dates & Duration
+                                          Row(
+                                            children: [
+                                              const Icon(
+                                                Icons.date_range_outlined,
+                                                size: 14,
+                                                color: Color(0xFF059669),
+                                              ),
+                                              const SizedBox(width: 4),
+                                              Expanded(
+                                                child: Text(
+                                                  '${item.startDate ?? ""} to ${item.endDate ?? ""}',
+                                                  maxLines: 1,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                  style: GoogleFonts.outfit(
+                                                    fontSize: 12.5,
+                                                    fontWeight:
+                                                        FontWeight.w600,
+                                                    color: const Color(
+                                                      0xFF064E3B,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
+                                              const SizedBox(width: 8),
+                                              Container(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                  horizontal: 6,
+                                                  vertical: 2,
+                                                ),
+                                                decoration: BoxDecoration(
+                                                  color:
+                                                      const Color(0xFFF1F5F9),
+                                                  borderRadius:
+                                                      BorderRadius.circular(6),
+                                                ),
+                                                child: Text(
+                                                  '${item.totalDays ?? 1} Day${(item.totalDays ?? 1) > 1 ? "s" : ""}',
+                                                  style: GoogleFonts.outfit(
+                                                    fontSize: 10.5,
+                                                    fontWeight:
+                                                        FontWeight.bold,
+                                                    color: const Color(
+                                                      0xFF475569,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 6),
+
+                                          // Reason
+                                          Text(
+                                            item.reason ?? '',
+                                            style: GoogleFonts.outfit(
+                                              fontSize: 12,
+                                              color: const Color(0xFF64748B),
+                                              height: 1.35,
+                                            ),
+                                          ),
+
+                                          // Approvals Row (Supervisor & Admin)
+                                          const SizedBox(height: 10),
+                                          Wrap(
+                                            spacing: 8,
+                                            runSpacing: 6,
+                                            children: [
+                                              _buildApprovalBadge(
+                                                'Supervisor',
+                                                item.supervisorApproval
+                                                        ?.status ??
+                                                    'pending',
+                                              ),
+                                              _buildApprovalBadge(
+                                                'Admin',
+                                                item.adminApproval
+                                                        ?.status ??
+                                                    'pending',
+                                              ),
+                                            ],
+                                          ),
+
+                                          // Remarks (if any)
+                                          if ((item.supervisorApproval
+                                                          ?.remarks !=
+                                                      null &&
+                                                  item
+                                                      .supervisorApproval!
+                                                      .remarks!
+                                                      .isNotEmpty) ||
+                                              (item.adminApproval
+                                                          ?.remarks !=
+                                                      null &&
+                                                  item
+                                                      .adminApproval!
+                                                      .remarks!
+                                                      .isNotEmpty)) ...[
+                                            const SizedBox(height: 8),
+                                            Container(
+                                              padding: const EdgeInsets.all(8),
+                                              decoration: BoxDecoration(
+                                                color: const Color(
+                                                  0xFFECFDF5,
+                                                ),
+                                                borderRadius:
+                                                    BorderRadius.circular(10),
+                                                border: Border.all(
+                                                  color: const Color(
+                                                    0xFF10B981,
+                                                  ).withOpacity(0.25),
+                                                ),
+                                              ),
+                                              child: Row(
+                                                children: [
+                                                  const Icon(
+                                                    Icons.comment_outlined,
+                                                    size: 13,
+                                                    color: Color(0xFF059669),
+                                                  ),
+                                                  const SizedBox(width: 6),
+                                                  Expanded(
+                                                    child: Text(
+                                                      item
+                                                              .supervisorApproval
+                                                              ?.remarks ??
+                                                          item
+                                                              .adminApproval
+                                                              ?.remarks ??
+                                                          '',
+                                                      style:
+                                                          GoogleFonts.outfit(
+                                                        fontSize: 11,
+                                                        color: const Color(
+                                                          0xFF047857,
+                                                        ),
+                                                        fontWeight:
+                                                            FontWeight.w500,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          ],
+
+                                          // Applied at timestamp
+                                          if (item.appliedAt != null &&
+                                              item.appliedAt!.isNotEmpty) ...[
+                                            const SizedBox(height: 8),
+                                            Row(
+                                              children: [
+                                                const Icon(
+                                                  Icons.access_time_rounded,
+                                                  size: 11,
+                                                  color: Color(0xFF94A3B8),
+                                                ),
+                                                const SizedBox(width: 4),
+                                                Text(
+                                                  'Applied: ${item.appliedAt}',
+                                                  style: GoogleFonts.outfit(
+                                                    fontSize: 10.5,
+                                                    color: const Color(
+                                                      0xFF94A3B8,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ],
+                                        ],
+                                      ),
+                                    );
+                                  },
                                 ),
-                              ),
-                            );
-                          },
                         ),
                 ),
               ],
@@ -931,40 +1063,92 @@ class _LeaveApplyScreenState extends State<LeaveApplyScreen> {
     );
   }
 
-  // Quota Card Widget
-  Widget _buildQuotaCard(String title, String count, Color color) {
-    return Expanded(
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-          child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.75),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.white, width: 1.5),
-            ),
-            child: Column(
-              children: [
-                Text(
-                  count,
-                  style: GoogleFonts.outfit(
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    color: color,
-                  ),
-                ),
-                Text(
-                  title,
-                  style: GoogleFonts.outfit(
-                    fontSize: 10.5,
-                    color: const Color(0xFF64748B),
-                  ),
-                ),
-              ],
+  // Approval step mini badge
+  Widget _buildApprovalBadge(String role, String status) {
+    Color col;
+    final st = status.toLowerCase();
+    if (st == 'approved') {
+      col = const Color(0xFF10B981);
+    } else if (st == 'pending') {
+      col = const Color(0xFFF59E0B);
+    } else {
+      col = const Color(0xFFEF4444);
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+      decoration: BoxDecoration(
+        color: col.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: col.withOpacity(0.3), width: 0.8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 5,
+            height: 5,
+            decoration: BoxDecoration(color: col, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 4),
+          Text(
+            '$role: ${st.toUpperCase()}',
+            style: GoogleFonts.outfit(
+              fontSize: 9.5,
+              fontWeight: FontWeight.bold,
+              color: col,
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  // Quota / Summary Card Widget - Resilient to Small Screens
+  Widget _buildQuotaCard(String title, String count, Color color) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 4),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: color.withOpacity(0.25),
+            width: 1.2,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: color.withOpacity(0.08),
+              blurRadius: 8,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              count,
+              style: GoogleFonts.outfit(
+                fontSize: 15,
+                fontWeight: FontWeight.bold,
+                color: color,
+              ),
+            ),
+            const SizedBox(height: 2),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                title,
+                maxLines: 1,
+                style: GoogleFonts.outfit(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                  color: const Color(0xFF64748B),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );

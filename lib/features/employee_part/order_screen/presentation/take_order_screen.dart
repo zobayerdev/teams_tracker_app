@@ -1,6 +1,24 @@
+import 'dart:async';
 import 'dart:ui';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:location_tracker/common_widgets/custom_toast.dart';
+import 'package:location_tracker/constants/app_constants.dart';
+import 'package:location_tracker/features/employee_part/catalog_screen/model/product_response_model.dart';
+import 'package:location_tracker/features/employee_part/home_screen/model/customer_response_model.dart';
+import 'package:location_tracker/helpers/di.dart';
+import 'package:location_tracker/networks/api_acess.dart';
+
+class OrderProductItem {
+  final ProductModel product;
+  int qty;
+
+  OrderProductItem({
+    required this.product,
+    this.qty = 0,
+  });
+}
 
 class TakeOrderScreen extends StatefulWidget {
   const TakeOrderScreen({super.key});
@@ -10,136 +28,131 @@ class TakeOrderScreen extends StatefulWidget {
 }
 
 class _TakeOrderScreenState extends State<TakeOrderScreen> {
-  // Demo Customer List (api_shops.php theke fetch hobe)
-  final List _shops = [
-    {
-      'name': 'Rahman Brothers General Store',
-      'phone': '01755667788',
-      'address': 'Shop #14, Mohakhali Kacha Bazar, Dhaka',
-    },
-    {
-      'name': 'Bismillah Groceries & Store',
-      'phone': '01811223344',
-      'address': 'Mirpur 10 Circle, Dhaka',
-    },
-    {
-      'name': 'Janata Super Shop',
-      'phone': '01922334455',
-      'address': 'Banani Super Market, Dhaka',
-    },
-    {
-      'name': 'Tongi Mart (Wholesale Outlet)',
-      'phone': '01711002233',
-      'address': 'Station Road, Tongi, Gazipur',
-    },
-  ];
+  CustomerModel? _selectedCustomer;
+  List<CustomerModel> _customers = [];
+  List<OrderProductItem> _orderProducts = [];
 
-  Map<String, String>? _selectedShop;
+  bool _isLoadingCustomers = true;
+  bool _isLoadingProducts = true;
+  bool _isSubmitting = false;
 
-  // Demo Product Catalog (api_products.php theke ashbe)
-  final List _products = [
-    {
-      'id': 1,
-      'name': 'Brown Farm Egg (Large Grade-A)',
-      'unit': 'Piece',
-      'price': 11.50,
-      'stock': 2400,
-      'qty': 0,
-    },
-    {
-      'id': 2,
-      'name': 'White Premium Poultry Egg',
-      'unit': 'Piece',
-      'price': 10.20,
-      'stock': 1800,
-      'qty': 0,
-    },
-    {
-      'id': 3,
-      'name': 'Native Duck Egg (Shonali Grade)',
-      'unit': 'Piece',
-      'price': 15.00,
-      'stock': 650,
-      'qty': 0,
-    },
-    {
-      'id': 4,
-      'name': 'Paper Egg Tray (30 Slot Standard)',
-      'unit': 'Pack',
-      'price': 48.00,
-      'stock': 320,
-      'qty': 0,
-    },
-    {
-      'id': 5,
-      'name': 'Plastic Crates (Transport Grade)',
-      'unit': 'Box',
-      'price': 350.00,
-      'stock': 85,
-      'qty': 0,
-    },
-  ];
+  StreamSubscription? _customerSub;
+  StreamSubscription? _productSub;
 
   String _paymentStatus = 'due'; // 'paid', 'due', 'partial'
-  final TextEditingController _paidAmountController = TextEditingController();
   final TextEditingController _noteController = TextEditingController();
-  bool _isSubmitting = false;
 
   @override
   void initState() {
     super.initState();
-    _selectedShop = _shops.first;
+    _initData();
+  }
+
+  void _initData() {
+    getCustomerRxObj.fetchCustomers();
+    getProductRxObj.fetchProduct();
+
+    _customerSub = getCustomerRxObj.fillData.listen((data) {
+      if (!mounted) return;
+      if (data.isNotEmpty && data['data'] != null) {
+        try {
+          final res = CustomerResponseModel.fromJson(
+            Map<String, dynamic>.from(data),
+          );
+          setState(() {
+            _customers = res.data;
+            if (_selectedCustomer == null && _customers.isNotEmpty) {
+              _selectedCustomer = _customers.first;
+            }
+            _isLoadingCustomers = false;
+          });
+        } catch (_) {
+          setState(() => _isLoadingCustomers = false);
+        }
+      } else {
+        setState(() => _isLoadingCustomers = false);
+      }
+    });
+
+    _productSub = getProductRxObj.fillData.listen((data) {
+      if (!mounted) return;
+      if (data.isNotEmpty && data['data'] != null) {
+        try {
+          final res = ProductResponseModel.fromJson(
+            Map<String, dynamic>.from(data),
+          );
+          setState(() {
+            final currentQuantities = {
+              for (var item in _orderProducts) item.product.id: item.qty,
+            };
+
+            _orderProducts = res.data.map((p) {
+              return OrderProductItem(
+                product: p,
+                qty: currentQuantities[p.id] ?? 0,
+              );
+            }).toList();
+            _isLoadingProducts = false;
+          });
+        } catch (_) {
+          setState(() => _isLoadingProducts = false);
+        }
+      } else {
+        setState(() => _isLoadingProducts = false);
+      }
+    });
   }
 
   @override
   void dispose() {
-    _paidAmountController.dispose();
+    _customerSub?.cancel();
+    _productSub?.cancel();
     _noteController.dispose();
     super.dispose();
   }
 
   double get _totalAmount {
     double total = 0.0;
-    for (var p in _products) {
-      total += (p['qty'] as int) * (p['price'] as double);
+    for (var p in _orderProducts) {
+      final price = p.product.shopPrice > 0
+          ? p.product.shopPrice.toDouble()
+          : p.product.customerPrice.toDouble();
+      total += p.qty * price;
     }
     return total;
   }
 
   int get _totalItemsCount {
     int count = 0;
-    for (var p in _products) {
-      count += (p['qty'] as int);
+    for (var p in _orderProducts) {
+      count += p.qty;
     }
     return count;
   }
 
   void _updateQuantity(int index, int change) {
     setState(() {
-      int current = _products[index]['qty'] as int;
-      int maxStock = _products[index]['stock'] as int;
+      int current = _orderProducts[index].qty;
+      int maxStock = _orderProducts[index].product.stockQuantity;
       int next = current + change;
 
-      if (next >= 0 && next <= maxStock) {
-        _products[index]['qty'] = next;
+      if (next >= 0 && (maxStock == 0 || next <= maxStock)) {
+        _orderProducts[index].qty = next;
       }
     });
   }
 
   void _handleConfirmOrder() async {
-    if (_totalAmount <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Kono product select kora hoyni! Onnotomo 1 ti item jog korun.',
-            style: GoogleFonts.outfit(color: Colors.white),
-          ),
-          backgroundColor: const Color(0xFF064E3B),
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
+    if (_selectedCustomer == null) {
+      customToastMessage('Warning', 'Please select a retailer / customer.');
+      return;
+    }
+
+    final selectedItems = _orderProducts.where((p) => p.qty > 0).toList();
+    if (selectedItems.isEmpty || _totalAmount <= 0) {
+      customToastMessage(
+        'Warning',
+        'Kono product select kora hoyni! Onnotomo 1 ti item jog korun.',
       );
       return;
     }
@@ -148,8 +161,29 @@ class _TakeOrderScreenState extends State<TakeOrderScreen> {
       _isSubmitting = true;
     });
 
-    // API Simulation (api_orders.php action: create_order)
-    await Future.delayed(const Duration(seconds: 2));
+    final int employeeId =
+        int.tryParse(appData.read(kKeyUserID)?.toString() ?? '') ?? 1;
+
+    final itemsPayload = selectedItems
+        .map((p) => {
+              "product_id": p.product.id,
+              "quantity": p.qty,
+            })
+        .toList();
+
+    final bool isSuccess = await postCreateOrderRxObj.postCreateOrder(
+      shopName: _selectedCustomer!.shopName,
+      shopPhone: _selectedCustomer!.phone,
+      phone: _selectedCustomer!.phone,
+      ownerName: _selectedCustomer!.ownerName,
+      address: _selectedCustomer!.address,
+      latitude: _selectedCustomer!.latitude,
+      longitude: _selectedCustomer!.longitude,
+      createdBy: employeeId,
+      paymentStatus: _paymentStatus,
+      note: _noteController.text.trim(),
+      items: itemsPayload,
+    );
 
     if (!mounted) return;
 
@@ -157,19 +191,10 @@ class _TakeOrderScreenState extends State<TakeOrderScreen> {
       _isSubmitting = false;
     });
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          'Order #ORD-${DateTime.now().millisecondsSinceEpoch.toString().substring(8)} booked successfully!',
-          style: GoogleFonts.outfit(color: Colors.white),
-        ),
-        backgroundColor: const Color(0xFF059669),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      ),
-    );
-
-    Navigator.pop(context);
+    if (isSuccess) {
+      getOrderRxObj.fetchOrders();
+      Navigator.pop(context);
+    }
   }
 
   @override
@@ -335,7 +360,7 @@ class _TakeOrderScreenState extends State<TakeOrderScreen> {
                               ),
                             ),
                             Text(
-                              '${_products.length} Items Available',
+                              '${_orderProducts.length} Items Available',
                               style: GoogleFonts.outfit(
                                 fontSize: 11.5,
                                 color: const Color(0xFF059669),
@@ -347,164 +372,249 @@ class _TakeOrderScreenState extends State<TakeOrderScreen> {
                         const SizedBox(height: 10),
 
                         // Product Items List
-                        ListView.separated(
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          itemCount: _products.length,
-                          separatorBuilder: (context, index) =>
-                              const SizedBox(height: 10),
-                          itemBuilder: (context, index) {
-                            final prod = _products[index];
-                            final int qty = prod['qty'];
+                        if (_isLoadingProducts)
+                          const Center(
+                            child: Padding(
+                              padding: EdgeInsets.symmetric(vertical: 40),
+                              child: CircularProgressIndicator(
+                                color: Color(0xFF059669),
+                              ),
+                            ),
+                          )
+                        else if (_orderProducts.isEmpty)
+                          Container(
+                            padding: const EdgeInsets.all(24),
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.7),
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            child: Text(
+                              'No products available currently.',
+                              style: GoogleFonts.outfit(
+                                color: const Color(0xFF64748B),
+                                fontSize: 14,
+                              ),
+                            ),
+                          )
+                        else
+                          ListView.separated(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            itemCount: _orderProducts.length,
+                            separatorBuilder: (context, index) =>
+                                const SizedBox(height: 10),
+                            itemBuilder: (context, index) {
+                              final item = _orderProducts[index];
+                              final int qty = item.qty;
+                              final price = item.product.shopPrice > 0
+                                  ? item.product.shopPrice
+                                  : item.product.customerPrice;
 
-                            return ClipRRect(
-                              borderRadius: BorderRadius.circular(18),
-                              child: BackdropFilter(
-                                filter: ImageFilter.blur(
-                                  sigmaX: 14,
-                                  sigmaY: 14,
-                                ),
-                                child: Container(
-                                  padding: const EdgeInsets.all(14),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white.withOpacity(0.76),
-                                    borderRadius: BorderRadius.circular(18),
-                                    border: Border.all(
-                                      color: qty > 0
-                                          ? const Color(
-                                              0xFF10B981,
-                                            ).withOpacity(0.5)
-                                          : Colors.white,
-                                      width: qty > 0 ? 1.6 : 1.2,
-                                    ),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: const Color(
-                                          0xFF064E3B,
-                                        ).withOpacity(0.04),
-                                        blurRadius: 14,
-                                        offset: const Offset(0, 5),
-                                      ),
-                                    ],
+                              return ClipRRect(
+                                borderRadius: BorderRadius.circular(18),
+                                child: BackdropFilter(
+                                  filter: ImageFilter.blur(
+                                    sigmaX: 14,
+                                    sigmaY: 14,
                                   ),
-                                  child: Row(
-                                    children: [
-                                      // Product Icon
-                                      Container(
-                                        padding: const EdgeInsets.all(10),
-                                        decoration: BoxDecoration(
+                                  child: Container(
+                                    padding: const EdgeInsets.all(14),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withOpacity(0.76),
+                                      borderRadius: BorderRadius.circular(18),
+                                      border: Border.all(
+                                        color: qty > 0
+                                            ? const Color(
+                                                0xFF10B981,
+                                              ).withOpacity(0.5)
+                                            : Colors.white,
+                                        width: qty > 0 ? 1.6 : 1.2,
+                                      ),
+                                      boxShadow: [
+                                        BoxShadow(
                                           color: const Color(
-                                            0xFF10B981,
-                                          ).withOpacity(0.12),
-                                          shape: BoxShape.circle,
+                                            0xFF064E3B,
+                                          ).withOpacity(0.04),
+                                          blurRadius: 14,
+                                          offset: const Offset(0, 5),
                                         ),
-                                        child: const Icon(
-                                          Icons.egg_outlined,
-                                          color: Color(0xFF059669),
-                                          size: 22,
-                                        ),
-                                      ),
-                                      const SizedBox(width: 12),
-
-                                      // Details
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              prod['name'],
-                                              style: GoogleFonts.outfit(
-                                                fontSize: 13.5,
-                                                fontWeight: FontWeight.bold,
-                                                color: const Color(0xFF0F172A),
-                                              ),
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                            ),
-                                            const SizedBox(height: 2),
-                                            Text(
-                                              'Price: ৳${prod['price']} / ${prod['unit']}  •  Stock: ${prod['stock']}',
-                                              style: GoogleFonts.outfit(
-                                                fontSize: 11,
-                                                color: const Color(0xFF64748B),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-
-                                      // Stepper Counter (+ / -)
-                                      Container(
-                                        decoration: BoxDecoration(
-                                          color: Colors.white,
-                                          borderRadius: BorderRadius.circular(
-                                            12,
-                                          ),
-                                          border: Border.all(
-                                            color: const Color(0xFFE2E8F0),
-                                          ),
-                                        ),
-                                        child: Row(
-                                          children: [
-                                            GestureDetector(
-                                              onTap: () =>
-                                                  _updateQuantity(index, -10),
-                                              child: Container(
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                      horizontal: 8,
-                                                      vertical: 6,
+                                      ],
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        // Product Image
+                                        ClipRRect(
+                                          borderRadius:
+                                              BorderRadius.circular(12),
+                                          child: (item.product.imageUrl !=
+                                                      null &&
+                                                  item.product.imageUrl!
+                                                      .isNotEmpty)
+                                              ? CachedNetworkImage(
+                                                  imageUrl:
+                                                      item.product.imageUrl!,
+                                                  width: 48,
+                                                  height: 48,
+                                                  fit: BoxFit.cover,
+                                                  placeholder: (context, url) =>
+                                                      Container(
+                                                    width: 48,
+                                                    height: 48,
+                                                    color:
+                                                        const Color(0xFF10B981)
+                                                            .withOpacity(0.12),
+                                                    child: const Center(
+                                                      child: SizedBox(
+                                                        width: 16,
+                                                        height: 16,
+                                                        child:
+                                                            CircularProgressIndicator(
+                                                          strokeWidth: 2,
+                                                          color:
+                                                              Color(0xFF059669),
+                                                        ),
+                                                      ),
                                                     ),
-                                                child: const Icon(
-                                                  Icons.remove,
-                                                  size: 16,
-                                                  color: Color(0xFF064E3B),
+                                                  ),
+                                                  errorWidget: (context, url,
+                                                          error) =>
+                                                      Container(
+                                                    width: 48,
+                                                    height: 48,
+                                                    color:
+                                                        const Color(0xFF10B981)
+                                                            .withOpacity(0.12),
+                                                    child: const Icon(
+                                                      Icons.inventory_2_outlined,
+                                                      color: Color(0xFF059669),
+                                                      size: 22,
+                                                    ),
+                                                  ),
+                                                )
+                                              : Container(
+                                                  width: 48,
+                                                  height: 48,
+                                                  decoration: BoxDecoration(
+                                                    color:
+                                                        const Color(0xFF10B981)
+                                                            .withOpacity(0.12),
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                            12),
+                                                  ),
+                                                  child: const Icon(
+                                                    Icons.inventory_2_outlined,
+                                                    color: Color(0xFF059669),
+                                                    size: 22,
+                                                  ),
                                                 ),
-                                              ),
-                                            ),
-                                            Container(
-                                              constraints: const BoxConstraints(
-                                                minWidth: 32,
-                                              ),
-                                              alignment: Alignment.center,
-                                              child: Text(
-                                                '$qty',
+                                        ),
+                                        const SizedBox(width: 12),
+
+                                        // Details
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                item.product.productName,
                                                 style: GoogleFonts.outfit(
                                                   fontSize: 13.5,
                                                   fontWeight: FontWeight.bold,
-                                                  color: qty > 0
-                                                      ? const Color(0xFF059669)
-                                                      : const Color(0xFF0F172A),
+                                                  color:
+                                                      const Color(0xFF0F172A),
+                                                ),
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                              const SizedBox(height: 2),
+                                              Text(
+                                                'Price: ৳$price  •  Stock: ${item.product.stockQuantity}${item.product.piecePerBox > 0 ? ' (${item.product.piecePerBox}/box)' : ''}',
+                                                style: GoogleFonts.outfit(
+                                                  fontSize: 11,
+                                                  color:
+                                                      const Color(0xFF64748B),
                                                 ),
                                               ),
-                                            ),
-                                            GestureDetector(
-                                              onTap: () =>
-                                                  _updateQuantity(index, 10),
-                                              child: Container(
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                      horizontal: 8,
-                                                      vertical: 6,
-                                                    ),
-                                                child: const Icon(
-                                                  Icons.add,
-                                                  size: 16,
-                                                  color: Color(0xFF064E3B),
-                                                ),
-                                              ),
-                                            ),
-                                          ],
+                                            ],
+                                          ),
                                         ),
-                                      ),
-                                    ],
+
+                                        // Stepper Counter (+ / -)
+                                        Container(
+                                          decoration: BoxDecoration(
+                                            color: Colors.white,
+                                            borderRadius:
+                                                BorderRadius.circular(12),
+                                            border: Border.all(
+                                              color: const Color(0xFFE2E8F0),
+                                            ),
+                                          ),
+                                          child: Row(
+                                            children: [
+                                              GestureDetector(
+                                                onTap: () =>
+                                                    _updateQuantity(index, -1),
+                                                child: Container(
+                                                  padding: const EdgeInsets
+                                                      .symmetric(
+                                                    horizontal: 8,
+                                                    vertical: 6,
+                                                  ),
+                                                  child: const Icon(
+                                                    Icons.remove,
+                                                    size: 16,
+                                                    color: Color(0xFF064E3B),
+                                                  ),
+                                                ),
+                                              ),
+                                              Container(
+                                                constraints:
+                                                    const BoxConstraints(
+                                                  minWidth: 32,
+                                                ),
+                                                alignment: Alignment.center,
+                                                child: Text(
+                                                  '$qty',
+                                                  style: GoogleFonts.outfit(
+                                                    fontSize: 13.5,
+                                                    fontWeight: FontWeight.bold,
+                                                    color: qty > 0
+                                                        ? const Color(
+                                                            0xFF059669)
+                                                        : const Color(
+                                                            0xFF0F172A),
+                                                  ),
+                                                ),
+                                              ),
+                                              GestureDetector(
+                                                onTap: () =>
+                                                    _updateQuantity(index, 1),
+                                                child: Container(
+                                                  padding: const EdgeInsets
+                                                      .symmetric(
+                                                    horizontal: 8,
+                                                    vertical: 6,
+                                                  ),
+                                                  child: const Icon(
+                                                    Icons.add,
+                                                    size: 16,
+                                                    color: Color(0xFF064E3B),
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
                                   ),
                                 ),
-                              ),
-                            );
-                          },
-                        ),
+                              );
+                            },
+                          ),
 
                         const SizedBox(height: 18),
 
@@ -731,56 +841,85 @@ class _TakeOrderScreenState extends State<TakeOrderScreen> {
                 ],
               ),
               const SizedBox(height: 10),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: const Color(0xFFE2E8F0)),
-                ),
-                child: DropdownButtonHideUnderline(
-                  child: DropdownButton(
-                    isExpanded: true,
-                    dropdownColor: Colors.white,
-                    borderRadius: BorderRadius.circular(14),
-                    icon: const Icon(
-                      Icons.keyboard_arrow_down_rounded,
-                      color: Color(0xFF064E3B),
+              if (_isLoadingCustomers)
+                const Center(
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(vertical: 8),
+                    child: SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Color(0xFF059669),
+                      ),
                     ),
-                    value: _selectedShop,
-                    items: _shops.map((shop) {
-                      return DropdownMenuItem(
-                        value: shop,
-                        child: Text(
-                          shop['name']!,
-                          style: GoogleFonts.outfit(
-                            fontSize: 13.5,
-                            fontWeight: FontWeight.bold,
-                            color: const Color(0xFF0F172A),
+                  ),
+                )
+              else if (_customers.isEmpty)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
+                  child: Text(
+                    'No shops found. Please add a shop first.',
+                    style: GoogleFonts.outfit(
+                      fontSize: 13,
+                      color: const Color(0xFF64748B),
+                    ),
+                  ),
+                )
+              else
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                  ),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<CustomerModel>(
+                      isExpanded: true,
+                      dropdownColor: Colors.white,
+                      borderRadius: BorderRadius.circular(14),
+                      icon: const Icon(
+                        Icons.keyboard_arrow_down_rounded,
+                        color: Color(0xFF064E3B),
+                      ),
+                      value: _selectedCustomer,
+                      items: _customers.map((cust) {
+                        return DropdownMenuItem<CustomerModel>(
+                          value: cust,
+                          child: Text(
+                            cust.shopName,
+                            style: GoogleFonts.outfit(
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.bold,
+                              color: const Color(0xFF0F172A),
+                            ),
                           ),
-                        ),
-                      );
-                    }).toList(),
-                    onChanged: (val) {
-                      setState(() {
-                        _selectedShop = val as Map<String, String>?;
-                      });
-                    },
+                        );
+                      }).toList(),
+                      onChanged: (val) {
+                        setState(() {
+                          _selectedCustomer = val;
+                        });
+                      },
+                    ),
                   ),
                 ),
-              ),
-              if (_selectedShop != null) ...[
+              if (_selectedCustomer != null) ...[
                 const SizedBox(height: 8),
                 Row(
                   children: [
                     const Icon(
-                      Icons.phone_outlined,
+                      Icons.person_outline_rounded,
                       size: 13,
                       color: Color(0xFF64748B),
                     ),
                     const SizedBox(width: 4),
                     Text(
-                      _selectedShop!['phone']!,
+                      _selectedCustomer!.ownerName,
                       style: GoogleFonts.outfit(
                         fontSize: 11.5,
                         color: const Color(0xFF64748B),
@@ -788,24 +927,44 @@ class _TakeOrderScreenState extends State<TakeOrderScreen> {
                     ),
                     const SizedBox(width: 10),
                     const Icon(
-                      Icons.location_on_outlined,
+                      Icons.phone_outlined,
                       size: 13,
                       color: Color(0xFF64748B),
                     ),
                     const SizedBox(width: 4),
-                    Expanded(
-                      child: Text(
-                        _selectedShop!['address']!,
-                        style: GoogleFonts.outfit(
-                          fontSize: 11.5,
-                          color: const Color(0xFF64748B),
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                    Text(
+                      _selectedCustomer!.phone,
+                      style: GoogleFonts.outfit(
+                        fontSize: 11.5,
+                        color: const Color(0xFF64748B),
                       ),
                     ),
                   ],
                 ),
+                if (_selectedCustomer!.address.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.location_on_outlined,
+                        size: 13,
+                        color: Color(0xFF64748B),
+                      ),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          _selectedCustomer!.address,
+                          style: GoogleFonts.outfit(
+                            fontSize: 11.5,
+                            color: const Color(0xFF64748B),
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ],
             ],
           ),
